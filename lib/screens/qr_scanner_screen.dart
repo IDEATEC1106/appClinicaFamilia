@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_barcode_scanner/flutter_barcode_scanner.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:google_mlkit_barcode_scanning/google_mlkit_barcode_scanning.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../services/api_service.dart';
 import 'home_screen.dart';
@@ -13,47 +14,62 @@ class QrScannerScreen extends StatefulWidget {
 
 class _QrScannerScreenState extends State<QrScannerScreen> {
   bool _isProcessing = false;
+  final ImagePicker _picker = ImagePicker();
+  final BarcodeScanner _barcodeScanner = BarcodeScanner(formats: [BarcodeFormat.qrCode]);
 
   @override
-  void initState() {
-    super.initState();
-    // Lanzamos el escáner automáticamente al entrar a la pantalla
-    _startScanning();
+  void dispose() {
+    _barcodeScanner.close();
+    super.dispose();
   }
 
-  Future<void> _startScanning() async {
-    // Solicitar permiso de cámara por seguridad
+  Future<void> _openCameraAndScan() async {
     final status = await Permission.camera.request();
     if (!status.isGranted) {
-      if (!mounted) return;
-      _showErrorDialog("Se requiere el permiso de la cámara para escanear el QR.");
+      _showErrorDialog("Se requiere el permiso de la cámara para continuar.");
       return;
     }
 
     try {
-      // Abre la vista de escaneo dedicada en tiempo real
-      String barcodeScanRes = await FlutterBarcodeScanner.scanBarcode(
-        '#2196F3', // Color de la barra superior (Azul)
-        'Cancelar', // Texto del botón de cancelar
-        true,       // Mostrar icono de flash / linterna
-        ScanMode.QR,
+      // Abre la cámara para capturar el código QR de manera limpia
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 90,
       );
 
-      // Si el usuario cancela, el resultado es '-1'
-      if (barcodeScanRes == '-1' || barcodeScanRes.isEmpty) {
-        return;
-      }
+      if (image == null) return; // Si el usuario cancela, no hace nada
 
       setState(() {
         _isProcessing = true;
       });
 
-      _processQRCode(barcodeScanRes);
+      final inputImage = InputImage.fromFilePath(image.path);
+      final List<Barcode> barcodes = await _barcodeScanner.processImage(inputImage);
+
+      if (barcodes.isNotEmpty) {
+        String? qrCode;
+        for (final barcode in barcodes) {
+          if (barcode.rawValue != null && barcode.rawValue!.isNotEmpty) {
+            qrCode = barcode.rawValue;
+            break;
+          }
+        }
+
+        if (qrCode != null) {
+          _processQRCode(qrCode);
+          return;
+        }
+      }
+
+      setState(() {
+        _isProcessing = false;
+      });
+      _showErrorDialog("No se detectó un código QR válido. Asegúrese de enfocarlo bien e intente nuevamente.");
     } catch (e) {
       setState(() {
         _isProcessing = false;
       });
-      _showErrorDialog("Ocurrió un error al iniciar el escáner: $e");
+      _showErrorDialog("Ocurrió un error al procesar la imagen: $e");
     }
   }
 
@@ -97,12 +113,8 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         content: Text(message),
         actions: [
           TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // Permitir reintentar abriendo el escáner de nuevo
-              _startScanning();
-            },
-            child: const Text("Reintentar"),
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Aceptar"),
           ),
         ],
       ),
@@ -139,7 +151,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                     ),
                     const SizedBox(height: 24),
                     const Text(
-                      'Presione el botón para abrir el visor y enfocar automáticamente el código QR de acceso.',
+                      'Presione el botón para abrir la cámara, enfocar el código QR de acceso y validar automáticamente:',
                       textAlign: TextAlign.center,
                       style: TextStyle(fontSize: 15, color: Colors.black87),
                     ),
@@ -154,8 +166,8 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                           textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                         ),
                         icon: const Icon(Icons.camera_alt),
-                        label: const Text('Abrir Escáner QR'),
-                        onPressed: _startScanning,
+                        label: const Text('Escanear Código QR'),
+                        onPressed: _openCameraAndScan,
                       ),
                     ),
                   ],
