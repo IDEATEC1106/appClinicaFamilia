@@ -18,23 +18,19 @@ jobs:
         with:
           channel: 'stable'
 
-      # Limpiar entorno
-      - name: Clean Flutter project
-        run: flutter clean
-
-      # Instalar dependencias
-      - name: Install dependencies
-        run: flutter pub get
-
-      # ¡ESTE ES EL PASO CLAVE! Regenerar la plataforma Android limpia automáticamente en el servidor
+      # 1. PRIMERO: Crear/regenerar la plataforma Android antes de tocar dependencias
       - name: Create Android platform
         run: flutter create . --org com.ideatec --platforms=android
 
-      # Compilar el APK en modo Release
+      # 2. SEGUNDO: Instalar dependencias con la estructura ya creada
+      - name: Install dependencies
+        run: flutter pub get
+
+      # 3. TERCERO: Compilar el APK en modo Release
       - name: Build APK Release
         run: flutter build apk --release
 
-      # Subir el APK como artefacto descargable
+      # 4. CUARTO: Subir el APK como artefacto descargable
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
