@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:qr_code_scanner/qr_code_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
-import '../services/api_service.dart';
+import 'v'../services/api_service.dart';
 import 'home_screen.dart';
 
 class QrScannerScreen extends StatefulWidget {
@@ -12,22 +12,18 @@ class QrScannerScreen extends StatefulWidget {
 }
 
 class _QrScannerScreenState extends State<QrScannerScreen> {
+  final GlobalKey _qrKey = GlobalKey(debugLabel: 'QR');
+  QRViewController? _controller;
   bool _isScanned = false;
   bool _hasPermission = false;
-  late final MobileScannerController _controller;
 
   @override
   void initState() {
     super.initState();
-    _controller = MobileScannerController(
-      detectionSpeed: DetectionSpeed.noDuplicates,
-      facing: CameraFacing.back,
-      torchEnabled: false,
-    );
-    _requestPermission();
+    _checkPermission();
   }
 
-  Future<void> _requestPermission() async {
+  Future<void> _checkPermission() async {
     final status = await Permission.camera.request();
     setState(() {
       _hasPermission = status.isGranted;
@@ -35,8 +31,17 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   }
 
   @override
+  void reassemble() {
+    super.reassemble();
+    if (_controller != null) {
+      _controller!.pauseCamera();
+      _controller!.resumeCamera();
+    }
+  }
+
+  @override
   void dispose() {
-    _controller.dispose();
+    _controller?.dispose();
     super.dispose();
   }
 
@@ -84,7 +89,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
               setState(() {
                 _isScanned = false;
               });
-              _controller.start();
+              _controller?.resumeCamera();
             },
             child: const Text("Reintentar"),
           ),
@@ -105,25 +110,23 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         children: [
           Expanded(
             child: _hasPermission
-                ? MobileScanner(
-                    controller: _controller,
-                    onDetect: (capture) {
-                      final List<Barcode> barcodes = capture.barcodes;
-                      for (final barcode in barcodes) {
-                        if (barcode.rawValue != null) {
-                          _processScanner(barcode.rawValue!);
-                          break;
+                ? QRView(
+                    key: _qrKey,
+                    onQRViewCreated: (QRViewController controller) {
+                      _controller = controller;
+                      controller.scannedDataStream.listen((scanData) {
+                        if (scanData.code != null) {
+                          _processQRCode(scanData.code!);
                         }
-                      }
+                      });
                     },
-                    errorBuilder: (context, error, child) {
-                      return Center(
-                        child: Text(
-                          'Error en la cámara: ${error.errorCode}',
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                      );
-                    },
+                    overlay: QrScannerOverlayShape(
+                      borderColor: Colors.blueAccent,
+                      borderRadius: 10,
+                      borderLength: 30,
+                      borderWidth: 10,
+                      cutOutSize: 250,
+                    ),
                   )
                 : Center(
                     child: ElevatedButton.icon(
@@ -133,7 +136,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                       ),
                       icon: const Icon(Icons.camera_alt),
                       label: const Text('Conceder Permiso de Cámara'),
-                      onPressed: _requestPermission,
+                      onPressed: _checkPermission,
                     ),
                   ),
           ),
@@ -154,9 +157,5 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         ],
       ),
     );
-  }
-
-  void _processScanner(String code) {
-    _processQRCode(code);
   }
 }
