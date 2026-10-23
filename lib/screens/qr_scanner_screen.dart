@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../services/api_service.dart';
 import 'home_screen.dart';
 
@@ -12,6 +13,7 @@ class QrScannerScreen extends StatefulWidget {
 
 class _QrScannerScreenState extends State<QrScannerScreen> {
   bool _isScanned = false;
+  bool _hasPermission = false;
   late MobileScannerController _controller;
 
   @override
@@ -22,6 +24,17 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
       facing: CameraFacing.back,
       torchEnabled: false,
     );
+    _checkPermissionAndStart();
+  }
+
+  Future<void> _checkPermissionAndStart() async {
+    final status = await Permission.camera.request();
+    setState(() {
+      _hasPermission = status.isGranted;
+    });
+    if (_hasPermission) {
+      _controller.start();
+    }
   }
 
   @override
@@ -94,32 +107,30 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
       body: Column(
         children: [
           Expanded(
-            child: Stack(
-              children: [
-                MobileScanner(
-                  controller: _controller,
-                  onDetect: (capture) {
-                    final List<Barcode> barcodes = capture.barcodes;
-                    for (final barcode in barcodes) {
-                      if (barcode.rawValue != null) {
-                        _processQRCode(barcode.rawValue!);
-                        break;
+            child: _hasPermission
+                ? MobileScanner(
+                    controller: _controller,
+                    onDetect: (capture) {
+                      final List<Barcode> barcodes = capture.barcodes;
+                      for (final barcode in barcodes) {
+                        if (barcode.rawValue != null) {
+                          _processQRCode(barcode.rawValue!);
+                          break;
+                        }
                       }
-                    }
-                  },
-                ),
-                // Botón flotante por si la cámara requiere un toque manual para iniciar
-                Positioned(
-                  bottom: 20,
-                  right: 20,
-                  child: FloatingActionButton(
-                    backgroundColor: Colors.blueAccent,
-                    child: const Icon(Icons.camera_alt, color: Colors.white),
-                    onPressed: () => _controller.start(),
+                    },
+                  )
+                : Center(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blueAccent,
+                        foregroundColor: Colors.white,
+                      ),
+                      icon: const Icon(Icons.camera_alt),
+                      label: const Text('Conceder Permiso de Cámara'),
+                      onPressed: _checkPermissionAndStart,
+                    ),
                   ),
-                ),
-              ],
-            ),
           ),
           Container(
             width: double.infinity,
