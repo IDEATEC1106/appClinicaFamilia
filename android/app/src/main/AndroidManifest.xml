@@ -3,7 +3,7 @@
 
     <!-- Permiso necesario para el escáner QR -->
     <uses-permission android:name="android.permission.CAMERA" />
-
+    
     <application
         android:label="app_clinica_familia"
         android:name="${applicationName}"
