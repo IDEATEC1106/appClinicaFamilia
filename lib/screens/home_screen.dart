@@ -38,21 +38,39 @@ class HomeScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Cabecera: Datos de la Clínica
+            // Cabecera: Datos de la Clínica y Logo SPT
             Card(
               elevation: 4,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
                   children: [
-                    Text(
-                      razonSocial,
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blue),
+                    // Logo de la clínica
+                    Image.asset(
+                      'LogoSPT.png',
+                      width: 60,
+                      height: 60,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        return const Icon(Icons.local_hospital, size: 50, color: Colors.blue);
+                      },
                     ),
-                    const SizedBox(height: 5),
-                    Text('RUC: $ruc', style: const TextStyle(fontSize: 14, color: Colors.grey)),
+                    const SizedBox(width: 16),
+                    // Razón social y RUC
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            razonSocial,
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blue),
+                          ),
+                          const SizedBox(height: 5),
+                          Text('RUC: $ruc', style: const TextStyle(fontSize: 14, color: Colors.grey)),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -70,7 +88,7 @@ class HomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 30),
 
-            // Opciones de menú (Sin implementar por ahora)
+            // Opciones de menú
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
