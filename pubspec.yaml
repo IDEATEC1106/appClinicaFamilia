@@ -1,0 +1,12 @@
+dependencies:
+  flutter:
+    sdk: flutter
+  # Librería para leer códigos QR con la cámara
+  mobile_scanner: ^5.2.3
+  # Librería para consumir tu API backend (Flask)
+  http: ^1.2.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
