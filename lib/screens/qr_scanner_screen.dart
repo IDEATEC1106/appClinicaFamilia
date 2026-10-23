@@ -32,12 +32,16 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
     setState(() {
       _hasPermission = status.isGranted;
     });
+
     if (_hasPermission && mounted) {
-      try {
-        await _controller.start();
-      } catch (e) {
-        debugPrint("Error al iniciar la cámara: $e");
-      }
+      // Espera a que el frame se renderice por completo antes de encender la cámara
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        try {
+          await _controller.start();
+        } catch (e) {
+          debugPrint("Error al iniciar la cámara: $e");
+        }
+      });
     }
   }
 
