@@ -17,7 +17,6 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   @override
   void initState() {
     super.initState();
-    // Inicializamos el controlador de la cámara de manera explícita
     _controller = MobileScannerController(
       detectionSpeed: DetectionSpeed.normal,
       facing: CameraFacing.back,
@@ -27,7 +26,6 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
 
   @override
   void dispose() {
-    // Liberamos los recursos de la cámara al salir de la pantalla
     _controller.dispose();
     super.dispose();
   }
@@ -38,13 +36,11 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
       _isScanned = true;
     });
 
-    // Validaciones de longitud mínima del código QR
     if (qrCode.length < 10) {
       _showErrorDialog("El código QR no tiene el formato válido.");
       return;
     }
 
-    // Llamada al servicio que consume el endpoint de Flask
     final resultado = await ApiService.validarQr(qrCode);
 
     if (!mounted) return;
@@ -78,7 +74,6 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
               setState(() {
                 _isScanned = false;
               });
-              // Reanudamos la cámara al cerrar el diálogo de error
               _controller.start();
             },
             child: const Text("Reintentar"),
@@ -96,17 +91,39 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         backgroundColor: Colors.blueAccent,
         foregroundColor: Colors.white,
       ),
-      body: MobileScanner(
-        controller: _controller,
-        onDetect: (capture) {
-          final List<Barcode> barcodes = capture.barcodes;
-          for (final barcode in barcodes) {
-            if (barcode.rawValue != null) {
-              _processQRCode(barcode.rawValue!);
-              break;
-            }
-          }
-        },
+      body: Column(
+        children: [
+          // Vista de la cámara ocupando el espacio principal
+          Expanded(
+            child: MobileScanner(
+              controller: _controller,
+              onDetect: (capture) {
+                final List<Barcode> barcodes = capture.barcodes;
+                for (final barcode in barcodes) {
+                  if (barcode.rawValue != null) {
+                    _processQRCode(barcode.rawValue!);
+                    break;
+                  }
+                }
+              },
+            ),
+          ),
+          // Franja inferior con el mensaje institucional
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 16.0),
+            color: Colors.black87,
+            child: const Text(
+              'Escanear su Código QR proporcionado por la Clínica',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
