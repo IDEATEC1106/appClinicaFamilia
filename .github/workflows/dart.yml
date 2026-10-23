@@ -22,6 +22,10 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      # GENERAR LA PLATAFORMA ANDROID LIMPIA AUTOMÁTICAMENTE
+      - name: Create Android platform
+        run: flutter create . --org com.ideatec --platforms=android
+
       # Compilar el APK en modo Release
       - name: Build APK Release
         run: flutter build apk --release
