@@ -14,36 +14,29 @@ class QrScannerScreen extends StatefulWidget {
 class _QrScannerScreenState extends State<QrScannerScreen> {
   bool _isScanned = false;
   bool _hasPermission = false;
-  MobileScannerController? _controller;
+  late final MobileScannerController _controller;
 
   @override
   void initState() {
     super.initState();
-    _checkPermissionAndStart();
+    _controller = MobileScannerController(
+      detectionSpeed: DetectionSpeed.noDuplicates,
+      facing: CameraFacing.back,
+      torchEnabled: false,
+    );
+    _requestPermission();
   }
 
-  Future<void> _checkPermissionAndStart() async {
+  Future<void> _requestPermission() async {
     final status = await Permission.camera.request();
-    
-    if (status.isGranted) {
-      setState(() {
-        _hasPermission = true;
-        _controller = MobileScannerController(
-          detectionSpeed: DetectionSpeed.normal,
-          facing: CameraFacing.back,
-          torchEnabled: false,
-        );
-      });
-    } else {
-      setState(() {
-        _hasPermission = false;
-      });
-    }
+    setState(() {
+      _hasPermission = status.isGranted;
+    });
   }
 
   @override
   void dispose() {
-    _controller?.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
@@ -91,7 +84,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
               setState(() {
                 _isScanned = false;
               });
-              _controller?.start();
+              _controller.start();
             },
             child: const Text("Reintentar"),
           ),
@@ -111,17 +104,25 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
       body: Column(
         children: [
           Expanded(
-            child: _hasPermission && _controller != null
+            child: _hasPermission
                 ? MobileScanner(
-                    controller: _controller!,
+                    controller: _controller,
                     onDetect: (capture) {
                       final List<Barcode> barcodes = capture.barcodes;
                       for (final barcode in barcodes) {
                         if (barcode.rawValue != null) {
-                          _processQRCode(barcode.rawValue!);
+                          _processScanner(barcode.rawValue!);
                           break;
                         }
                       }
+                    },
+                    errorBuilder: (context, error, child) {
+                      return Center(
+                        child: Text(
+                          'Error en la cámara: ${error.errorCode}',
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                      );
                     },
                   )
                 : Center(
@@ -132,7 +133,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                       ),
                       icon: const Icon(Icons.camera_alt),
                       label: const Text('Conceder Permiso de Cámara'),
-                      onPressed: _checkPermissionAndStart,
+                      onPressed: _requestPermission,
                     ),
                   ),
           ),
@@ -153,5 +154,9 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         ],
       ),
     );
+  }
+
+  void _processScanner(String code) {
+    _processQRCode(code);
   }
 }
