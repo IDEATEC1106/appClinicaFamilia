@@ -18,19 +18,15 @@ jobs:
         with:
           channel: 'stable'
 
-      # 1. PRIMERO: Crear/regenerar la plataforma Android antes de tocar dependencias
-      - name: Create Android platform
-        run: flutter create . --org com.ideatec --platforms=android
-
-      # 2. SEGUNDO: Instalar dependencias con la estructura ya creada
+      # Instalar dependencias
       - name: Install dependencies
         run: flutter pub get
 
-      # 3. TERCERO: Compilar el APK en modo Release
+      # Compilar el APK en modo Release
       - name: Build APK Release
         run: flutter build apk --release
 
-      # 4. CUARTO: Subir el APK como artefacto descargable
+      # Subir el APK como artefacto descargable
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
