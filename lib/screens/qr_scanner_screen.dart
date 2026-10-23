@@ -1,4 +1,23 @@
-d initState() {
+import 'package:flutter/material.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:permission_handler/permission_handler.dart';
+import '../services/api_service.dart';
+import 'home_screen.dart';
+
+class QrScannerScreen extends StatefulWidget {
+  const QrScannerScreen({super.key});
+
+  @override
+  State<QrScannerScreen> createState() => _QrScannerScreenState();
+}
+
+class _QrScannerScreenState extends State<QrScannerScreen> {
+  bool _isScanned = false;
+  bool _hasPermission = false;
+  late final MobileScannerController _controller;
+
+  @override
+  void initState() {
     super.initState();
     _controller = MobileScannerController(
       detectionSpeed: DetectionSpeed.noDuplicates,
@@ -89,22 +108,10 @@ d initState() {
         backgroundColor: Colors.blueAccent,
         foregroundColor: Colors.white,
         actions: [
-          // Botón para encender/apagar el flash si hay poca luz
           IconButton(
-            icon: ValueListenableBuilder(
-              valueListenable: _controller,
-              builder: (context, state, child) {
-                return Icon(
-                  state.torchState == TorchState.on
-                      .torchState == TorchState.on
-                      ? Icons.flash_on
-                      : Icons.flash_off,
-                );
-              },
-            ),
+            icon: const Icon(Icons.flash_on),
             onPressed: () => _controller.toggleTorch(),
           ),
-          // Botón para cambiar entre cámara trasera y delantera
           IconButton(
             icon: const Icon(Icons.flip_camera_ios),
             onPressed: () => _controller.switchCamera(),
@@ -129,7 +136,6 @@ d initState() {
                           }
                         },
                       ),
-                      // Recuadro visual decorativo para guiar al usuario
                       Center(
                         child: Container(
                           width: 250,
