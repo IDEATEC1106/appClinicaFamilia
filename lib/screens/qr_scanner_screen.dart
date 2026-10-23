@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../services/api_service.dart';
 import 'home_screen.dart';
 
@@ -12,6 +13,7 @@ class QrScannerScreen extends StatefulWidget {
 
 class _QrScannerScreenState extends State<QrScannerScreen> {
   bool _isScanned = false;
+  bool _hasPermission = false;
   late MobileScannerController _controller;
 
   @override
@@ -22,6 +24,17 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
       facing: CameraFacing.back,
       torchEnabled: false,
     );
+    _requestCameraPermission();
+  }
+
+  Future<void> _requestCameraPermission() async {
+    final status = await Permission.camera.request();
+    setState(() {
+      _hasPermission = status.isGranted;
+    });
+    if (_hasPermission) {
+      _controller.start();
+    }
   }
 
   @override
@@ -93,22 +106,27 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
       ),
       body: Column(
         children: [
-          // Vista de la cámara ocupando el espacio principal
           Expanded(
-            child: MobileScanner(
-              controller: _controller,
-              onDetect: (capture) {
-                final List<Barcode> barcodes = capture.barcodes;
-                for (final barcode in barcodes) {
-                  if (barcode.rawValue != null) {
-                    _processQRCode(barcode.rawValue!);
-                    break;
-                  }
-                }
-              },
-            ),
+            child: _hasPermission
+                ? MobileScanner(
+                    controller: _controller,
+                    onDetect: (capture) {
+                      final List<Barcode> barcodes = capture.barcodes;
+                      for (final barcode in barcodes) {
+                        if (barcode.rawValue != null) {
+                          _processQRCode(barcode.rawValue!);
+                          break;
+                        }
+                      }
+                    },
+                  )
+                : const Center(
+                    child: Text(
+                      'Se requiere permiso de cámara para continuar',
+                      style: TextStyle(color: Colors.white, fontSize: 16),
+                    ),
+                  ),
           ),
-          // Franja inferior con el mensaje institucional
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 16.0),
