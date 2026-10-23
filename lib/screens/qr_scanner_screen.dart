@@ -14,35 +14,23 @@ class QrScannerScreen extends StatefulWidget {
 class _QrScannerScreenState extends State<QrScannerScreen> {
   bool _isScanned = false;
   bool _hasPermission = false;
-  late final MobileScannerController _controller;
+  final MobileScannerController _controller = MobileScannerController(
+    detectionSpeed: DetectionSpeed.noDuplicates,
+    facing: CameraFacing.back,
+    torchEnabled: false,
+  );
 
   @override
   void initState() {
     super.initState();
-    _controller = MobileScannerController(
-      detectionSpeed: DetectionSpeed.noDuplicates,
-      facing: CameraFacing.back,
-      torchEnabled: false,
-    );
-    _checkPermissionAndStart();
+    _checkPermission();
   }
 
-  Future<void> _checkPermissionAndStart() async {
+  Future<void> _checkPermission() async {
     final status = await Permission.camera.request();
     setState(() {
       _hasPermission = status.isGranted;
     });
-
-    if (_hasPermission && mounted) {
-      // Espera a que el frame se renderice por completo antes de encender la cámara
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
-        try {
-          await _controller.start();
-        } catch (e) {
-          debugPrint("Error al iniciar la cámara: $e");
-        }
-      });
-    }
   }
 
   @override
@@ -95,7 +83,6 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
               setState(() {
                 _isScanned = false;
               });
-              _controller.start();
             },
             child: const Text("Reintentar"),
           ),
@@ -130,6 +117,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                     children: [
                       MobileScanner(
                         controller: _controller,
+                        // Permitimos que el widget gestione el arranque automáticamente
                         onDetect: (capture) {
                           final List<Barcode> barcodes = capture.barcodes;
                           for (final barcode in barcodes) {
@@ -160,7 +148,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                       ),
                       icon: const Icon(Icons.camera_alt),
                       label: const Text('Conceder Permiso de Cámara'),
-                      onPressed: _checkPermissionAndStart,
+                      onPressed: _checkPermission,
                     ),
                   ),
           ),
