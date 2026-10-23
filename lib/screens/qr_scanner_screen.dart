@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:qr_code_scanner/qr_code_scanner.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'v'../services/api_service.dart';
+import '../services/api_service.dart';
 import 'home_screen.dart';
 
 class QrScannerScreen extends StatefulWidget {
@@ -11,37 +11,56 @@ class QrScannerScreen extends StatefulWidget {
   State<QrScannerScreen> createState() => _QrScannerScreenState();
 }
 
-class _QrScannerScreenState extends State<QrScannerScreen> {
-  final GlobalKey _qrKey = GlobalKey(debugLabel: 'QR');
-  QRViewController? _controller;
+class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingObserver {
   bool _isScanned = false;
   bool _hasPermission = false;
+  late final MobileScannerController _controller;
 
   @override
   void initState() {
     super.initState();
-    _checkPermission();
+    WidgetsBinding.instance.addObserver(this);
+    _controller = MobileScannerController(
+      detectionSpeed: DetectionSpeed.noDuplicates,
+      facing: CameraFacing.back,
+      torchEnabled: false,
+    );
+    _checkPermissionAndStart();
   }
 
-  Future<void> _checkPermission() async {
+  Future<void> _checkPermissionAndStart() async {
     final status = await Permission.camera.request();
     setState(() {
       _hasPermission = status.isGranted;
     });
+    if (_hasPermission && mounted) {
+      try {
+        await _controller.start();
+      } catch (e) {
+        debugPrint("Error al iniciar la cámara: $e");
+      }
+    }
   }
 
   @override
-  void reassemble() {
-    super.reassemble();
-    if (_controller != null) {
-      _controller!.pauseCamera();
-      _controller!.resumeCamera();
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!_controller.value.isInitialized) {
+      return;
+    }
+
+    if (state == AppLifecycleState.resumed) {
+      if (_hasPermission) {
+        _controller.start();
+      }
+    } else if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
+      _controller.stop();
     }
   }
 
   @override
   void dispose() {
-    _controller?.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+    _controller.dispose();
     super.dispose();
   }
 
@@ -83,13 +102,13 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         title: const Text("Error de Validación"),
         content: Text(message),
         actions: [
-          TextButton(
+            TextButton(
             onPressed: () {
               Navigator.pop(context);
               setState(() {
                 _isScanned = false;
               });
-              _controller?.resumeCamera();
+              _controller.start();
             },
             child: const Text("Reintentar"),
           ),
@@ -110,23 +129,17 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         children: [
           Expanded(
             child: _hasPermission
-                ? QRView(
-                    key: _qrKey,
-                    onQRViewCreated: (QRViewController controller) {
-                      _controller = controller;
-                      controller.scannedDataStream.listen((scanData) {
-                        if (scanData.code != null) {
-                          _processQRCode(scanData.code!);
+                ? MobileScanner(
+                    controller: _controller,
+                    onDetect: (capture) {
+                      final List<Barcode> barcodes = capture.barcodes;
+                      for (final barcode in barcodes) {
+                        if (barcode.rawValue != null) {
+                          _processQRCode(barcode.rawValue!);
+                          break;
                         }
-                      });
+                      }
                     },
-                    overlay: QrScannerOverlayShape(
-                      borderColor: Colors.blueAccent,
-                      borderRadius: 10,
-                      borderLength: 30,
-                      borderWidth: 10,
-                      cutOutSize: 250,
-                    ),
                   )
                 : Center(
                     child: ElevatedButton.icon(
@@ -136,7 +149,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                       ),
                       icon: const Icon(Icons.camera_alt),
                       label: const Text('Conceder Permiso de Cámara'),
-                      onPressed: _checkPermission,
+                      onPressed: _checkPermissionAndStart,
                     ),
                   ),
           ),
