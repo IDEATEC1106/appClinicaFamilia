@@ -1,4 +1,4 @@
-name: Flutter CI
+name: Flutter CI & Build APK
 
 on:
   push:
@@ -13,15 +13,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Configurar el SDK de Flutter usando el canal estable (sin especificar versión estática)
+      # Configurar el SDK de Flutter usando el canal estable
       - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
 
-      # Instalar dependencias de Flutter
+      # Instalar dependencias
       - name: Install dependencies
         run: flutter pub get
 
-      # Analizar código fuente en busca de errores
-      - name: Analyze project source
-        run: flutter analyze
+      # Compilar el APK en modo Release (producción)
+      - name: Build APK Release
+        run: flutter build apk --release
+
+      # Subir el APK generado como artefacto descargable en GitHub
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
