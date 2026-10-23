@@ -24,7 +24,6 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   }
 
   Future<void> _scanWithCamera() async {
-    // Solicitar permiso de cámara
     final status = await Permission.camera.request();
     if (!status.isGranted) {
       _showErrorDialog("Se requiere el permiso de la cámara para continuar.");
@@ -32,28 +31,43 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
     }
 
     try {
-      // Abre la cámara nativa del teléfono para tomar una foto al QR
-      final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
+      // Abre la cámara nativa. Recuerda que el usuario debe tomar la foto y aceptarla.
+      final XFile? photo = await _picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 90, // Optimiza la calidad para lectura rápida
+      );
       
-      if (photo == null) return; // El usuario canceló la foto
+      if (photo == null) return; // Si el usuario canceló, no hacemos nada
 
       setState(() {
         _isProcessing = true;
       });
 
-      // Analiza la imagen usando ML Kit de Google
       final inputImage = InputImage.fromFilePath(photo.path);
       final List<Barcode> barcodes = await _barcodeScanner.processImage(inputImage);
 
-      if (barcodes.isNotEmpty && barcodes.first.rawValue != null) {
-        final String qrCode = barcodes.first.rawValue!;
-        _processQRCode(qrCode);
-      } else {
-        setState(() {
-          _isProcessing = false;
-        });
-        _showErrorDialog("No se detectó ningún código QR válido en la foto. Intente de nuevo.");
+      if (barcodes.isNotEmpty) {
+        // Buscamos el primer código que tenga un valor válido
+        String? qrCode;
+        for (final barcode in barcodes) {
+          if (barcode.rawValue != null && barcode.rawValue!.isNotEmpty) {
+            qrCode = barcode.rawValue;
+            break;
+          }
+        }
+
+        if (qrCode != null) {
+          _processQRCode(qrCode);
+          return;
+        }
       }
+
+      // Si llegó aquí es porque tomó la foto pero no encontró un QR legible
+      setState(() {
+        _isProcessing = false;
+      });
+      _showErrorDialog("No se detectó un código QR válido en la foto. Asegúrese de enfocar bien el código e intente nuevamente.");
+
     } catch (e) {
       setState(() {
         _isProcessing = false;
