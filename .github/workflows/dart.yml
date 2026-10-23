@@ -18,13 +18,17 @@ jobs:
         with:
           channel: 'stable'
 
-      # Limpiar caché de compilaciones anteriores en el servidor
+      # Limpiar entorno
       - name: Clean Flutter project
         run: flutter clean
 
       # Instalar dependencias
       - name: Install dependencies
         run: flutter pub get
+
+      # ¡ESTE ES EL PASO CLAVE! Regenerar la plataforma Android limpia automáticamente en el servidor
+      - name: Create Android platform
+        run: flutter create . --org com.ideatec --platforms=android
 
       # Compilar el APK en modo Release
       - name: Build APK Release
