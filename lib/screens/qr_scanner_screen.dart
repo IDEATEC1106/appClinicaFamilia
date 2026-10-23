@@ -12,6 +12,25 @@ class QrScannerScreen extends StatefulWidget {
 
 class _QrScannerScreenState extends State<QrScannerScreen> {
   bool _isScanned = false;
+  late MobileScannerController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    // Inicializamos el controlador de la cámara de manera explícita
+    _controller = MobileScannerController(
+      detectionSpeed: DetectionSpeed.normal,
+      facing: CameraFacing.back,
+      torchEnabled: false,
+    );
+  }
+
+  @override
+  void dispose() {
+    // Liberamos los recursos de la cámara al salir de la pantalla
+    _controller.dispose();
+    super.dispose();
+  }
 
   void _processQRCode(String qrCode) async {
     if (_isScanned) return;
@@ -19,19 +38,18 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
       _isScanned = true;
     });
 
-    // Validaciones de longitud mínima del código QR (ejemplo: 10 dígitos totales)
+    // Validaciones de longitud mínima del código QR
     if (qrCode.length < 10) {
       _showErrorDialog("El código QR no tiene el formato válido.");
       return;
     }
 
-    // Llamada al servicio que consume el endpoint de Flask (sp_RegistroQR_GetInfoQR, sp_Clinicas_GetInfoClinica, sp_Familias_GetInfoFamilia)
+    // Llamada al servicio que consume el endpoint de Flask
     final resultado = await ApiService.validarQr(qrCode);
 
     if (!mounted) return;
 
     if (resultado.success) {
-      // Navegar a la pantalla principal enviando los datos reales obtenidos de la base de datos
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -43,7 +61,6 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         ),
       );
     } else {
-      // Mostrar el mensaje de error devuelto por la API (ej: QR no registrado)
       _showErrorDialog(resultado.message);
     }
   }
@@ -61,6 +78,8 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
               setState(() {
                 _isScanned = false;
               });
+              // Reanudamos la cámara al cerrar el diálogo de error
+              _controller.start();
             },
             child: const Text("Reintentar"),
           ),
@@ -78,6 +97,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         foregroundColor: Colors.white,
       ),
       body: MobileScanner(
+        controller: _controller,
         onDetect: (capture) {
           final List<Barcode> barcodes = capture.barcodes;
           for (final barcode in barcodes) {
