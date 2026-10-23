@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:google_mlkit_barcode_scanning/google_mlkit_barcode_scanning.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../services/api_service.dart';
 import 'home_screen.dart';
@@ -11,66 +12,61 @@ class QrScannerScreen extends StatefulWidget {
   State<QrScannerScreen> createState() => _QrScannerScreenState();
 }
 
-class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingObserver {
-  bool _isScanned = false;
-  bool _hasPermission = false;
-  late final MobileScannerController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _controller = MobileScannerController(
-      detectionSpeed: DetectionSpeed.noDuplicates,
-      facing: CameraFacing.back,
-      torchEnabled: false,
-    );
-    _checkPermissionAndStart();
-  }
-
-  Future<void> _checkPermissionAndStart() async {
-    final status = await Permission.camera.request();
-    setState(() {
-      _hasPermission = status.isGranted;
-    });
-    if (_hasPermission && mounted) {
-      try {
-        await _controller.start();
-      } catch (e) {
-        debugPrint("Error al iniciar la cámara: $e");
-      }
-    }
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (!_controller.value.isInitialized) {
-      return;
-    }
-
-    if (state == AppLifecycleState.resumed) {
-      if (_hasPermission) {
-        _controller.start();
-      }
-    } else if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
-      _controller.stop();
-    }
-  }
+class _QrScannerScreenState extends State<QrScannerScreen> {
+  bool _isProcessing = false;
+  final ImagePicker _picker = ImagePicker();
+  final BarcodeScanner _barcodeScanner = BarcodeScanner(formats: [BarcodeFormat.qrCode]);
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _controller.dispose();
+    _barcodeScanner.close();
     super.dispose();
   }
 
-  void _processQRCode(String qrCode) async {
-    if (_isScanned) return;
-    setState(() {
-      _isScanned = true;
-    });
+  Future<void> _scanWithCamera() async {
+    // Solicitar permiso de cámara
+    final status = await Permission.camera.request();
+    if (!status.isGranted) {
+      _showErrorDialog("Se requiere el permiso de la cámara para continuar.");
+      return;
+    }
 
+    try {
+      // Abre la cámara nativa del teléfono para tomar una foto al QR
+      final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
+      
+      if (photo == null) return; // El usuario canceló la foto
+
+      setState(() {
+        _isProcessing = true;
+      });
+
+      // Analiza la imagen usando ML Kit de Google
+      final inputImage = InputImage.fromFilePath(photo.path);
+      final List<Barcode> barcodes = await _barcodeScanner.processImage(inputImage);
+
+      if (barcodes.isNotEmpty && barcodes.first.rawValue != null) {
+        final String qrCode = barcodes.first.rawValue!;
+        _processQRCode(qrCode);
+      } else {
+        setState(() {
+          _isProcessing = false;
+        });
+        _showErrorDialog("No se detectó ningún código QR válido en la foto. Intente de nuevo.");
+      }
+    } catch (e) {
+      setState(() {
+        _isProcessing = false;
+      });
+      _showErrorDialog("Ocurrió un error al procesar la imagen: $e");
+    }
+  }
+
+  void _processQRCode(String qrCode) async {
     if (qrCode.length < 10) {
+      setState(() {
+        _isProcessing = false;
+      });
       _showErrorDialog("El código QR no tiene el formato válido.");
       return;
     }
@@ -91,6 +87,9 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
         ),
       );
     } else {
+      setState(() {
+        _isProcessing = false;
+      });
       _showErrorDialog(resultado.message);
     }
   }
@@ -99,18 +98,12 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text("Error de Validación"),
+        title: const Text("Aviso"),
         content: Text(message),
         actions: [
-            TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              setState(() {
-                _isScanned = false;
-              });
-              _controller.start();
-            },
-            child: const Text("Reintentar"),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Aceptar"),
           ),
         ],
       ),
@@ -125,49 +118,47 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
         backgroundColor: Colors.blueAccent,
         foregroundColor: Colors.white,
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: _hasPermission
-                ? MobileScanner(
-                    controller: _controller,
-                    onDetect: (capture) {
-                      final List<Barcode> barcodes = capture.barcodes;
-                      for (final barcode in barcodes) {
-                        if (barcode.rawValue != null) {
-                          _processQRCode(barcode.rawValue!);
-                          break;
-                        }
-                      }
-                    },
-                  )
-                : Center(
-                    child: ElevatedButton.icon(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: _isProcessing
+              ? const Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text("Validando código QR...", style: TextStyle(fontSize: 16)),
+                  ],
+                )
+              : Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.qr_code_scanner_rounded,
+                      size: 120,
+                      color: Colors.blueAccent,
+                    ),
+                    const SizedBox(height: 24),
+                    const Text(
+                      'Presione el botón para abrir la cámara, enfocar el código QR y proceder con el acceso.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 16, color: Colors.black87),
+                    ),
+                    const SizedBox(height: 32),
+                    ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blueAccent,
                         foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                       icon: const Icon(Icons.camera_alt),
-                      label: const Text('Conceder Permiso de Cámara'),
-                      onPressed: _checkPermissionAndStart,
+                      label: const Text('Abrir Cámara y Escanear'),
+                      onPressed: _scanWithCamera,
                     ),
-                  ),
-          ),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 16.0),
-            color: Colors.black87,
-            child: const Text(
-              'Escanear su Código QR proporcionado por la Clínica',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ],
+                  ],
+                ),
+        ),
       ),
     );
   }
