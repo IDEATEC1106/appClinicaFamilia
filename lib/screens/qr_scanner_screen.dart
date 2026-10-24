@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:permission_handler/permission_handler.dart';
 import '../services/api_service.dart';
 import 'home_screen.dart';
 
@@ -12,62 +10,42 @@ class QrScannerScreen extends StatefulWidget {
 }
 
 class _QrScannerScreenState extends State<QrScannerScreen> {
-  bool _mostrarVisor = false;
-  bool _isScanned = false;
-  late final MobileScannerController _controller;
+  final TextEditingController _controller = TextEditingController();
+  final FocusNode _focusNode = FocusNode();
+  bool _isProcessing = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = MobileScannerController(
-      detectionSpeed: DetectionSpeed.noDuplicates,
-      facing: CameraFacing.back,
-      torchEnabled: false,
-      autoStart: false, // Vital para evitar el arranque en frío y la pantalla negra
-    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      FocusScope.of(context).requestFocus(_focusNode);
+    });
   }
 
   @override
   void dispose() {
     _controller.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
-  Future<void> _iniciarEscaneo() async {
-    final status = await Permission.camera.request();
-    if (!status.isGranted) {
-      if (!mounted) return;
-      _showErrorDialog("Se requiere el permiso de la cámara para escanear el QR.");
-      return;
-    }
+  void _procesarCodigo(String qrCode) async {
+    if (qrCode.trim().isEmpty || _isProcessing) return;
 
     setState(() {
-      _mostrarVisor = true;
+      _isProcessing = true;
     });
-
-    // Espera un instante a que el widget de video esté completamente montado en el árbol de UI
-    await Future.delayed(const Duration(milliseconds: 350));
-    try {
-      await _controller.start();
-    } catch (e) {
-      debugPrint("Error al iniciar la cámara: $e");
-    }
-  }
-
-  void _processQRCode(String qrCode) async {
-    if (_isScanned) return;
-    setState(() {
-      _isScanned = true;
-    });
-
-    await _controller.stop();
 
     if (qrCode.length < 10) {
-      _showErrorDialog("El código QR no tiene un formato válido.");
+      setState(() {
+        _isProcessing = false;
+        _controller.clear();
+      });
+      _showErrorDialog("El código QR ingresado no tiene un formato válido.");
       return;
     }
 
-    final resultado = await ApiService.validarQr(qrCode);
+    final resultado = await ApiService.validarQr(qrCode.trim());
 
     if (!mounted) return;
 
@@ -83,6 +61,10 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         ),
       );
     } else {
+      setState(() {
+        _isProcessing = false;
+        _controller.clear();
+      });
       _showErrorDialog(resultado.message);
     }
   }
@@ -97,12 +79,9 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              setState(() {
-                _isScanned = false;
-                _mostrarVisor = false;
-              });
+              FocusScope.of(context).requestFocus(_focusNode);
             },
-            child: const Text("Reintentar"),
+            child: const Text("Entendido"),
           ),
         ],
       ),
@@ -113,73 +92,26 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Escanee el Código QR de Acceso'),
+        title: const Text('Validación de Código QR'),
         backgroundColor: Colors.blueAccent,
         foregroundColor: Colors.white,
-        actions: _mostrarVisor
-            ? [
-                IconButton(
-                  icon: const Icon(Icons.flash_on),
-                  onPressed: () => _controller.toggleTorch(),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.flip_camera_ios),
-                  onPressed: () => _controller.switchCamera(),
-                ),
-              ]
-            : null,
       ),
-      body: _mostrarVisor
-          ? Column(
-              children: [
-                Expanded(
-                  child: Stack(
-                    children: [
-                      MobileScanner(
-                        controller: _controller,
-                        onDetect: (capture) {
-                          final List<Barcode> barcodes = capture.barcodes;
-                          for (final barcode in barcodes) {
-                            if (barcode.rawValue != null && barcode.rawValue!.isNotEmpty) {
-                              _processQRCode(barcode.rawValue!);
-                              break;
-                            }
-                          }
-                        },
-                      ),
-                      Center(
-                        child: Container(
-                          width: 250,
-                          height: 250,
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.blueAccent, width: 3),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 16.0),
-                  color: Colors.black87,
-                  child: const Text(
-                    'Enfoque el Código QR dentro del recuadro',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: _isProcessing
+              ? const Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 20),
+                    Text(
+                      "Validando código en el sistema...",
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                     ),
-                  ),
-                ),
-              ],
-            )
-          : Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
+                  ],
+                )
+              : Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const Icon(
@@ -189,32 +121,47 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                     ),
                     const SizedBox(height: 24),
                     const Text(
-                      'Presione el botón para abrir el visor integrado y escanear el código QR automáticamente en tiempo real:',
+                      'Ingrese o escanee el código de acceso:',
                       textAlign: TextAlign.center,
                       style: TextStyle(fontSize: 16, color: Colors.black87, height: 1.4),
                     ),
-                    const SizedBox(height: 40),
+                    const SizedBox(height: 30),
+                    TextField(
+                      controller: _controller,
+                      focusNode: _focusNode,
+                      autofocus: true,
+                      decoration: InputDecoration(
+                        labelText: 'Código QR / Texto',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        prefixIcon: const Icon(Icons.qr_code),
+                      ),
+                      onSubmitted: _procesarCodigo,
+                    ),
+                    const SizedBox(height: 20),
                     SizedBox(
                       width: double.infinity,
-                      child: ElevatedButton.icon(
+                      child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.blueAccent,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 16),
-                          textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        icon: const Icon(Icons.camera_alt_rounded, size: 24),
-                        label: const Text('Escanear Código QR'),
-                        onPressed: _iniciarEscaneo,
+                        onPressed: () => _procesarCodigo(_controller.text),
+                        child: const Text(
+                          'Validar Código',
+                          style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                        ),
                       ),
                     ),
                   ],
                 ),
-              ),
-            ),
+        ),
+      ),
     );
   }
 }
