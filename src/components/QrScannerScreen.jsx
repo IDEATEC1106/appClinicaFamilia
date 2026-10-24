@@ -1,82 +1,117 @@
-import React, { useEffect } from 'react';
-import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
+import React, { useEffect, useRef } from 'react';
+import jsQR from 'jsqr';
 
 export default function QrScannerScreen({ onScanSuccess, onCancel }) {
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const streamRef = useRef(null);
+
   useEffect(() => {
-    let isScanningActive = true;
+    let animationFrameId;
+    let isScanning = true;
 
-    const iniciarEscaneoReal = async () => {
+    const iniciarCamaraEnVivo = async () => {
       try {
-        // 1. Solicitar permisos de cámara nativos del sistema
-        const permission = await BarcodeScanner.requestPermissions();
-        if (permission.camera !== 'granted') {
-          alert('Se necesita permiso de la cámara para escanear el código QR.');
-          onCancel();
-          return;
-        }
-
-        // 2. Ocultar los elementos web de React para permitir ver la cámara nativa debajo
-        document.querySelector('body').style.background = 'transparent';
-        const rootEl = document.getElementById('root');
-        if (rootEl) rootEl.style.background = 'transparent';
-
-        // 3. Escuchar la lectura automática del código en tiempo real
-        BarcodeScanner.addListener('barcodeScanned', async event => {
-          if (event.barcode && isScanningActive) {
-            isScanningActive = false;
-            await BarcodeScanner.stopScan();
-            BarcodeScanner.removeAllListeners();
-            onScanSuccess(event.barcode.displayValue);
-          }
+        // Esto invoca directamente el permiso nativo del sistema operativo Android
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' }
         });
+        
+        streamRef.current = stream;
 
-        // 4. Iniciar el motor de escaneo nativo de Google MLKit
-        await BarcodeScanner.startScan();
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.setAttribute('playsinline', true);
+          await videoRef.current.play();
+          
+          // Bucle de lectura de fotogramas en tiempo real (Estilo Yape)
+          const escanearFotograma = () => {
+            if (!isScanning) return;
 
-      } catch (error) {
-        console.error('Error al iniciar el escáner nativo:', error);
+            const video = videoRef.current;
+            const canvas = canvasRef.current;
+
+            if (video && video.readyState === video.HAVE_ENOUGH_DATA) {
+              canvas.width = video.videoWidth;
+              canvas.height = video.videoHeight;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+              
+              const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+              const code = jsQR(imgData.data, imgData.width, imgData.height);
+
+              if (code) {
+                isScanning = false;
+                detenerCamara();
+                onScanSuccess(code.data);
+                return;
+              }
+            }
+            animationFrameId = requestAnimationFrame(escanearFotograma);
+          };
+
+          animationFrameId = requestAnimationFrame(escanearFotograma);
+        }
+      } catch (err) {
+        console.error('Error al acceder a la cámara:', err);
+        alert('Debe permitir el acceso a la cámara en los ajustes de su dispositivo.');
         onCancel();
       }
     };
 
-    iniciarEscaneoReal();
+    iniciarCamaraEnVivo();
 
     return () => {
-      isScanningActive = false;
-      BarcodeScanner.stopScan().catch(() => {});
-      BarcodeScanner.removeAllListeners().catch(() => {});
-      document.querySelector('body').style.background = '';
-      const rootEl = document.getElementById('root');
-      if (rootEl) rootEl.style.background = '';
+      isScanning = false;
+      cancelAnimationFrame(animationFrameId);
+      detenerCamara();
     };
   }, [onScanSuccess, onCancel]);
 
+  const detenerCamara = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+  };
+
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 99999, pointerEvents: 'none' }}>
-      {/* Botón flotante superior para cancelar y volver */}
-      <div style={{ position: 'absolute', top: '40px', left: '20px', zIndex: 100000, pointerEvents: 'auto' }}>
+    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: '#000', zIndex: 99999, display: 'flex', flexDirection: 'column' }}>
+      
+      {/* Botón superior Volver */}
+      <div style={{ position: 'absolute', top: '40px', left: '20px', zIndex: 100000 }}>
         <button 
-          onClick={async () => {
-            try {
-              await BarcodeScanner.stopScan();
-              BarcodeScanner.removeAllListeners();
-            } catch (e) {}
+          onClick={() => {
+            detenerCamara();
             onCancel();
           }}
           style={{
-            background: 'rgba(0, 0, 0, 0.75)',
+            background: 'rgba(0,0,0,0.7)',
             color: '#fff',
             border: 'none',
             padding: '12px 24px',
             borderRadius: '8px',
             fontSize: '16px',
             fontWeight: 'bold',
-            cursor: 'pointer',
-            boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
+            cursor: 'pointer'
           }}
         >
           ← Volver
         </button>
+      </div>
+
+      {/* Visor de la cámara en tiempo real */}
+      <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}>
+        <video 
+          ref={videoRef} 
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+        />
+        <canvas ref={canvasRef} style={{ display: 'none' }} />
+      </div>
+
+      {/* Guía visual de escaneo */}
+      <div style={{ position: 'absolute', bottom: '60px', width: '100%', textAlign: 'center', color: '#fff', fontSize: '15px', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
+        Enfoque el código QR dentro del recuadro
       </div>
     </div>
   );
