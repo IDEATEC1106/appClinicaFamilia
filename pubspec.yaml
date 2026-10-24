@@ -9,9 +9,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  image_picker: ^1.1.2
+  mobile_scanner: ^5.2.3
   permission_handler: ^11.3.1
-  google_mlkit_barcode_scanning: ^0.12.0
   http: ^1.2.0
   webview_flutter: ^4.4.4
 
