@@ -1,117 +1,76 @@
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import jsQR from 'jsqr';
 
 export default function QrScannerScreen({ onScanSuccess, onCancel }) {
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
-  const streamRef = useRef(null);
 
-  useEffect(() => {
-    let animationFrameId;
-    let isScanning = true;
+  const handleCapture = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
 
-    const iniciarCamaraEnVivo = async () => {
-      try {
-        // Esto invoca directamente el permiso nativo del sistema operativo Android
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment' }
-        });
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
         
-        streamRef.current = stream;
+        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imgData.data, imgData.width, imgData.height);
 
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.setAttribute('playsinline', true);
-          await videoRef.current.play();
-          
-          // Bucle de lectura de fotogramas en tiempo real (Estilo Yape)
-          const escanearFotograma = () => {
-            if (!isScanning) return;
-
-            const video = videoRef.current;
-            const canvas = canvasRef.current;
-
-            if (video && video.readyState === video.HAVE_ENOUGH_DATA) {
-              canvas.width = video.videoWidth;
-              canvas.height = video.videoHeight;
-              const ctx = canvas.getContext('2d');
-              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-              
-              const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-              const code = jsQR(imgData.data, imgData.width, imgData.height);
-
-              if (code) {
-                isScanning = false;
-                detenerCamara();
-                onScanSuccess(code.data);
-                return;
-              }
-            }
-            animationFrameId = requestAnimationFrame(escanearFotograma);
-          };
-
-          animationFrameId = requestAnimationFrame(escanearFotograma);
+        if (code) {
+          onScanSuccess(code.data);
+        } else {
+          alert('No se pudo leer el código QR. Intente nuevamente.');
         }
-      } catch (err) {
-        console.error('Error al acceder a la cámara:', err);
-        alert('Debe permitir el acceso a la cámara en los ajustes de su dispositivo.');
-        onCancel();
-      }
+      };
+      img.src = event.target.result;
     };
-
-    iniciarCamaraEnVivo();
-
-    return () => {
-      isScanning = false;
-      cancelAnimationFrame(animationFrameId);
-      detenerCamara();
-    };
-  }, [onScanSuccess, onCancel]);
-
-  const detenerCamara = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
+    reader.readAsDataURL(file);
   };
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: '#000', zIndex: 99999, display: 'flex', flexDirection: 'column' }}>
+    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: '#000', zIndex: 99999, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
       
-      {/* Botón superior Volver */}
-      <div style={{ position: 'absolute', top: '40px', left: '20px', zIndex: 100000 }}>
+      {/* Botón Volver */}
+      <div style={{ position: 'absolute', top: '40px', left: '20px' }}>
         <button 
-          onClick={() => {
-            detenerCamara();
-            onCancel();
-          }}
-          style={{
-            background: 'rgba(0,0,0,0.7)',
-            color: '#fff',
-            border: 'none',
-            padding: '12px 24px',
-            borderRadius: '8px',
-            fontSize: '16px',
-            fontWeight: 'bold',
-            cursor: 'pointer'
-          }}
+          onClick={onCancel}
+          style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none', padding: '12px 24px', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}
         >
           ← Volver
         </button>
       </div>
 
-      {/* Visor de la cámara en tiempo real */}
-      <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}>
-        <video 
-          ref={videoRef} 
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-        />
-        <canvas ref={canvasRef} style={{ display: 'none' }} />
-      </div>
+      <div style={{ textAlign: 'center', color: '#fff' }}>
+        <h2 style={{ marginBottom: '10px' }}>Escanear Código QR</h2>
+        <p style={{ color: '#aaa', marginBottom: '30px', fontSize: '14px', maxWidth: '300px' }}>
+          Presione el botón para abrir la cámara de su dispositivo y enfocar el código QR.
+        </p>
 
-      {/* Guía visual de escaneo */}
-      <div style={{ position: 'absolute', bottom: '60px', width: '100%', textAlign: 'center', color: '#fff', fontSize: '15px', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
-        Enfoque el código QR dentro del recuadro
+        {/* Botón que abre la cámara nativa del celular */}
+        <label style={{
+          backgroundColor: '#007bff',
+          color: '#fff',
+          padding: '16px 32px',
+          borderRadius: '12px',
+          fontSize: '18px',
+          fontWeight: 'bold',
+          cursor: 'pointer',
+          display: 'inline-block',
+          boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
+        }}>
+          Abrir Cámara
+          <input 
+            type="file" 
+            accept="image/*" 
+            capture="environment" 
+            onChange={handleCapture} 
+            style={{ display: 'none' }} 
+          />
+        </label>
       </div>
     </div>
   );
