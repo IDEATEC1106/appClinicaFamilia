@@ -1,78 +1,71 @@
-import React, { useEffect, useRef, useState } from 'react';
-import jsQR from 'jsqr';
-import './QrScannerScreen.css';
+import React, { useEffect } from 'react';
+import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
 
-export default function QrScannerScreen({ onScanSuccess }) {
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
-  const [error, setError] = useState('');
-
+export default function QrScannerScreen({ onScanSuccess, onCancel }) {
   useEffect(() => {
-    let stream = null;
-    let animationFrameId;
+    let isMounted = true;
 
-    const startCamera = async () => {
+    const startScan = async () => {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment' } // Utiliza la cámara trasera automáticamente
-        });
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.setAttribute('playsinline', true);
-          videoRef.current.play();
-          requestAnimationFrame(tick);
-        }
-      } catch (err) {
-        setError('No se pudo acceder a la cámara del dispositivo.');
-      }
-    };
-
-    const tick = () => {
-      if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
-        const canvas = canvasRef.current;
-        const canvasContext = canvas.getContext('2d');
-        
-        canvas.height = videoRef.current.videoHeight;
-        canvas.width = videoRef.current.videoWidth;
-        
-        canvasContext.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-        const imageData = canvasContext.getImageData(0, 0, canvas.width, canvas.height);
-        
-        const code = jsQR(imageData.data, imageData.width, imageData.height, {
-          inversionAttempts: 'dontInvert',
-        });
-
-        if (code) {
-          // ¡Código detectado! Se detiene la cámara y salta a la siguiente pantalla automáticamente
-          if (stream) {
-            stream.getTracks().forEach(track => track.stop());
-          }
-          onScanSuccess(code.data);
+        // Solicitar permisos de cámara nativos si aún no se han otorgado
+        const status = await BarcodeScanner.requestPermissions();
+        if (status.camera !== 'granted') {
+          alert('Se requieren permisos de cámara para escanear el código QR.');
+          onCancel();
           return;
         }
+
+        // Ocultar el fondo web para permitir ver la cámara nativa a través del visor
+        document.querySelector('body').style.background = 'transparent';
+        document.getElementById('root').style.background = 'transparent';
+
+        // Iniciar el escáner nativo
+        const listener = await BarcodeScanner.addListener('barcodeScanned', async result => {
+          if (result.barcode && isMounted) {
+            await BarcodeScanner.stopScan();
+            BarcodeScanner.removeAllListeners();
+            onScanSuccess(result.barcode.displayValue);
+          }
+        });
+
+        await BarcodeScanner.startScan();
+      } catch (err) {
+        console.error('Error al iniciar el escáner nativo:', err);
+        onCancel();
       }
-      animationFrameId = requestAnimationFrame(tick);
     };
 
-    startCamera();
+    startScan();
 
     return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-      cancelAnimationFrame(animationFrameId);
+      isMounted = false;
+      BarcodeScanner.stopScan().catch(() => {});
+      BarcodeScanner.removeAllListeners().catch(() => {});
+      document.querySelector('body').style.background = '';
+      document.getElementById('root').style.background = '';
     };
-  }, [onScanSuccess]);
+  }, [onScanSuccess, onCancel]);
 
   return (
-    <div className="qr-scanner-container">
-      <h3>Enfoque el Código QR</h3>
-      {error && <p className="error-text">{error}</p>}
-      <div className="video-wrapper">
-        <video ref={videoRef} className="qr-video" />
-        <canvas ref={canvasRef} style={{ display: 'none' }} />
+    <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 999, background: 'transparent' }}>
+      {/* Botón flotante superior para cancelar y volver */}
+      <div style={{ position: 'absolute', top: '40px', left: '20px', zIndex: 1000 }}>
+        <button 
+          onClick={onCancel}
+          style={{
+            background: 'rgba(0,0,0,0.6)',
+            color: '#fff',
+            border: 'none',
+            padding: '10px 20px',
+            borderRadius: '8px',
+            fontSize: '16px',
+            fontWeight: 'bold',
+            cursor: 'pointer'
+          }}
+        >
+          ← Volver
+        </button>
       </div>
-      <p className="hint-text">Validación automática en curso...</p>
     </div>
   );
 }
