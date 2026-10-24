@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Camera } from '@capacitor/camera';
 
 export default function QrScannerScreen({ onScanSuccess, onCancel }) {
   const videoRef = useRef(null);
@@ -6,35 +7,42 @@ export default function QrScannerScreen({ onScanSuccess, onCancel }) {
 
   useEffect(() => {
     let streamActive = null;
+    let isMounted = true;
 
-    const iniciarCamara = async () => {
+    const iniciarVisorConPermisos = async () => {
       try {
-        // Intentar primero con la cámara trasera de forma flexible
-        const constraints = {
-          video: { facingMode: { exact: 'environment' } }
-        };
+        // 1. Solicitar formalmente el permiso nativo al sistema operativo primero
+        const permStatus = await Camera.requestPermissions({ permissions: ['camera'] });
         
-        try {
-          streamActive = await navigator.mediaDevices.getUserMedia(constraints);
-        } catch (e) {
-          // Si el dispositivo no soporta exact, intentamos con ideal o cualquier cámara disponible
-          streamActive = await navigator.mediaDevices.getUserMedia({ video: true });
+        if (permStatus.camera !== 'granted' && permStatus.camera !== 'limited') {
+          if (isMounted) setErrorPermiso(true);
+          return;
         }
 
-        if (videoRef.current && streamActive) {
+        if (!isMounted) return;
+
+        // 2. Una vez concedido por el sistema, abrir el flujo de video de la cámara trasera
+        streamActive = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' }
+        });
+
+        if (videoRef.current && isMounted) {
           videoRef.current.srcObject = streamActive;
           videoRef.current.setAttribute('playsinline', true);
           await videoRef.current.play();
         }
       } catch (err) {
-        console.error('Error detallado de cámara:', err);
-        setErrorPermiso(true);
+        console.error('Error al iniciar la cámara tras permisos:', err);
+        if (isMounted) {
+          setErrorPermiso(true);
+        }
       }
     };
 
-    iniciarCamara();
+    iniciarVisorConPermisos();
 
     return () => {
+      isMounted = false;
       if (streamActive) {
         streamActive.getTracks().forEach(track => track.stop());
       }
@@ -57,7 +65,7 @@ export default function QrScannerScreen({ onScanSuccess, onCancel }) {
       {errorPermiso ? (
         <div style={{ color: '#fff', textAlign: 'center', padding: '20px' }}>
           <p style={{ fontSize: '18px', marginBottom: '15px' }}>No se pudo acceder a la cámara.</p>
-          <p style={{ fontSize: '14px', color: '#ccc', marginBottom: '20px' }}>Por favor, ve a Ajustes &gt; Aplicaciones &gt; Tu App &gt; Permisos y asegúrate de permitir la cámara.</p>
+          <p style={{ fontSize: '14px', color: '#ccc', marginBottom: '20px' }}>Por favor, otorga el permiso de cámara cuando la app lo solicite o actívalo en los Ajustes de tu teléfono.</p>
           <button onClick={onCancel} style={{ background: '#007bff', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontSize: '16px' }}>
             Regresar
           </button>
