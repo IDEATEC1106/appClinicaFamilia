@@ -14,21 +14,23 @@ class QrScannerScreen extends StatefulWidget {
 class _QrScannerScreenState extends State<QrScannerScreen> {
   late final WebViewController _webViewController;
   bool _isProcessing = false;
-  bool _hasPermission = false;
+  bool _isInitialized = false;
 
   @override
   void initState() {
     super.initState();
-    _verificarPermisosYConfigurar();
+    _inicializarCamaraYWeb();
   }
 
-  Future<void> _verificarPermisosYConfigurar() async {
+  Future<void> _inicializarCamaraYWeb() async {
+    // Solicita el permiso de la cámara de manera automática al abrir la pantalla
     final status = await Permission.camera.request();
-    setState(() {
-      _hasPermission = status.isGranted;
-    });
-
-    if (!_hasPermission) return;
+    
+    if (!status.isGranted) {
+      if (!mounted) return;
+      _mostrarDialogoPermiso();
+      return;
+    }
 
     _webViewController = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
@@ -39,6 +41,32 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         },
       )
       ..loadHtmlString(_htmlScannerContent);
+
+    if (mounted) {
+      setState(() {
+        _isInitialized = true;
+      });
+    }
+  }
+
+  void _mostrarDialogoPermiso() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text("Permiso Requerido"),
+        content: const Text("Se necesita acceso a la cámara para escanear el código QR automáticamente."),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _inicializarCamaraYWeb();
+            },
+            child: const Text("Reintentar"),
+          ),
+        ],
+      ),
+    );
   }
 
   void _procesarCodigoLeido(String qrCode) async {
@@ -94,7 +122,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
     );
   }
 
-  // HTML optimizado con html5-qrcode para lectura en tiempo real automática
+  // HTML optimizado para abrir la cámara de inmediato en pantalla completa
   final String _htmlScannerContent = '''
     <!DOCTYPE html>
     <html>
@@ -102,14 +130,15 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <script src="https://unpkg.com/html5-qrcode"></script>
         <style>
-            body { margin: 0; background-color: #000; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; color: white; font-family: sans-serif; }
-            #reader { width: 100%; max-width: 400px; }
-            .msg { margin-top: 20px; font-size: 16px; text-align: center; padding: 0 20px; }
+            body { margin: 0; background-color: #000; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; color: white; font-family: sans-serif; }
+            #reader { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; }
+            #reader video { width: 100% !important; height: 100% !important; object-fit: cover !important; }
+            .overlay { position: absolute; bottom: 40px; background: rgba(0,0,0,0.7); padding: 12px 24px; border-radius: 8px; font-size: 15px; text-align: center; z-index: 999; }
         </style>
     </head>
     <body>
         <div id="reader"></div>
-        <div class="msg" id="status">Enfoque el Código QR dentro del recuadro</div>
+        <div class="overlay" id="status">Enfoque el Código QR dentro del recuadro</div>
         <script>
             function onScanSuccess(decodedText, decodedResult) {
                 document.getElementById('status').innerText = "¡Código detectado! Validando...";
@@ -123,10 +152,10 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
             const html5QrCode = new Html5Qrcode("reader");
             html5QrCode.start(
                 { facingMode: "environment" },
-                { fps: 10, qrbox: { width: 250, height: 250 } },
+                { fps: 15, qrbox: { width: 250, height: 250 } },
                 onScanSuccess
             ).catch(err => {
-                document.getElementById('status').innerText = "Error al iniciar la cámara. Verifique permisos.";
+                document.getElementById('status').innerText = "No se pudo acceder a la cámara.";
             });
         </script>
     </body>
@@ -141,46 +170,23 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         backgroundColor: Colors.blueAccent,
         foregroundColor: Colors.white,
       ),
-      body: !_hasPermission
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.camera_alt, size: 80, color: Colors.grey),
-                    const SizedBox(height: 16),
-                    const Text(
-                      "Se requiere conceder acceso a la cámara para escanear el código QR.",
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 16),
-                    ),
-                    const SizedBox(height: 24),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blueAccent,
-                        foregroundColor: Colors.white,
-                      ),
-                      onPressed: _verificarPermisosYConfigurar,
-                      child: const Text("Conceder Permiso"),
-                    ),
-                  ],
-                ),
+      body: _isProcessing
+          ? const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 20),
+                  Text(
+                    "Validando código en el sistema...",
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                  ),
+                ],
               ),
             )
-          : _isProcessing
+          : !_isInitialized
               ? const Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      CircularProgressIndicator(),
-                      SizedBox(height: 20),
-                      Text(
-                        "Validando código en el sistema...",
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                      ),
-                    ],
-                  ),
+                  child: CircularProgressIndicator(),
                 )
               : WebViewWidget(controller: _webViewController),
     );
