@@ -24,10 +24,12 @@ jobs:
     - name: Build Web App
       run: npm run build
 
-    - name: Install Capacitor and sync
+    - name: Setup Capacitor and Android Platform
       run: |
         npm install @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6
-        npx cap init app-clinica-familia com.ideatec.appclinica --web-dir build
+        npx cap init app-clinica-familia com.ideatec.appclinica --web-dir build --yes || true
+        rm -rf android
+        npx cap add android
         npx cap sync android
 
     - name: Build APK with Gradle
