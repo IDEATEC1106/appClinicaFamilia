@@ -9,7 +9,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  mobile_scanner: ^5.2.3
+  flutter_zxing: ^1.4.0
   permission_handler: ^11.3.1
   http: ^1.2.0
 
