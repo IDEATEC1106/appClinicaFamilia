@@ -1,80 +1,78 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { ApiService } from '../services/apiService';
-import './QrScannerScreen.css'; // Tus estilos limpios
+import React, { useEffect, useRef, useState } from 'react';
+import jsQR from 'jsqr';
+import './QrScannerScreen.css';
 
-export default function QrScannerScreen({ onLoginSuccess }) {
-  const [codigo, setCodigo] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
-  const inputRef = useRef(null);
+export default function QrScannerScreen({ onScanSuccess }) {
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const [error, setError] = useState('');
 
-  // Mantiene el foco listo para recibir la lectura automática de la pistola láser
   useEffect(() => {
-    if (inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, [isProcessing]);
+    let stream = null;
+    let animationFrameId;
 
-  const handleProcesarCodigo = async (e) => {
-    if (e) e.preventDefault();
-    const qrLimpio = codigo.trim();
+    const startCamera = async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' } // Utiliza la cámara trasera automáticamente
+        });
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.setAttribute('playsinline', true);
+          videoRef.current.play();
+          requestAnimationFrame(tick);
+        }
+      } catch (err) {
+        setError('No se pudo acceder a la cámara del dispositivo.');
+      }
+    };
 
-    if (!qrLimpio || isProcessing) return;
+    const tick = () => {
+      if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
+        const canvas = canvasRef.current;
+        const canvasContext = canvas.getContext('2d');
+        
+        canvas.height = videoRef.current.videoHeight;
+        canvas.width = videoRef.current.videoWidth;
+        
+        canvasContext.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+        const imageData = canvasContext.getImageData(0, 0, canvas.width, canvas.height);
+        
+        const code = jsQR(imageData.data, imageData.width, imageData.height, {
+          inversionAttempts: 'dontInvert',
+        });
 
-    if (qrLimpio.length < 10) {
-      setErrorMessage("El código ingresado no tiene un formato válido.");
-      setCodigo('');
-      return;
-    }
+        if (code) {
+          // ¡Código detectado! Se detiene la cámara y salta a la siguiente pantalla automáticamente
+          if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+          }
+          onScanSuccess(code.data);
+          return;
+        }
+      }
+      animationFrameId = requestAnimationFrame(tick);
+    };
 
-    setIsProcessing(true);
-    setErrorMessage('');
+    startCamera();
 
-    const resultado = await ApiService.validarQr(qrLimpio);
-
-    setIsProcessing(false);
-    setCodigo('');
-
-    if (resultado.success) {
-      onLoginSuccess(resultado); // Cambia a la pantalla HomeScreen
-    } else {
-      setErrorMessage(resultado.message);
-    }
-  };
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, [onScanSuccess]);
 
   return (
-    <div className="scanner-container">
-      <div className="scanner-card">
-        <div className="scanner-icon">📱</div>
-        <h2>Control de Acceso / Validación</h2>
-        <p>Escanee con su pistola láser o ingrese el código QR:</p>
-
-        {isProcessing ? (
-          <div className="loading-container">
-            <div className="spinner"></div>
-            <p>Validando código en el sistema...</p>
-          </div>
-        ) : (
-          <form onSubmit={handleProcesarCodigo}>
-            <div className="input-group">
-              <input
-                ref={inputRef}
-                type="text"
-                value={codigo}
-                onChange={(e) => setCodigo(e.target.value)}
-                placeholder="Esperando código QR..."
-                autoFocus
-                autoComplete="off"
-              />
-            </div>
-            <button type="submit" className="btn-primary">
-              Validar Código
-            </button>
-          </form>
-        )}
-
-        {errorMessage && <div className="alert-error">{errorMessage}</div>}
+    <div className="qr-scanner-container">
+      <h3>Enfoque el Código QR</h3>
+      {error && <p className="error-text">{error}</p>}
+      <div className="video-wrapper">
+        <video ref={videoRef} className="qr-video" />
+        <canvas ref={canvasRef} style={{ display: 'none' }} />
       </div>
+      <p className="hint-text">Validación automática en curso...</p>
     </div>
   );
 }
