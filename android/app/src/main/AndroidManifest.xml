@@ -1,8 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-
-    <!-- Permiso de la cámara para el lector QR -->
+    <!-- Añade estos permisos obligatorios -->
     <uses-permission android:name="android.permission.CAMERA" />
-
+    <uses-feature android:name="android.hardware.camera" android:required="true" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+    
     <application
         android:label="app_clinica_familia"
         android:name="${applicationName}">
