@@ -28,14 +28,14 @@ jobs:
       run: |
         npm install @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6
         npx cap init app-clinica-familia com.ideatec.appclinica --web-dir build
-        if [ ! -d "android" ]; then
-          npx cap add android
-        fi
+        npx cap add android
+        npx cap update android
         npx cap sync android
 
     - name: Build APK with Gradle
       run: |
         cd android
+        npx cap update android
         chmod +x gradlew
         ./gradlew assembleDebug --no-daemon
 
