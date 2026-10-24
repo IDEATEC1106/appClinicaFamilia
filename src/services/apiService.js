@@ -1,4 +1,4 @@
-const API_URL = "38.224.68.171_5010"; // Ej: http://192.168.15.253:5000/api
+const API_URL = "38.224.68.171:5010"; // Ej: http://192.168.15.253:5000/api
 
 export const ApiService = {
   async validarQr(qrCode) {
