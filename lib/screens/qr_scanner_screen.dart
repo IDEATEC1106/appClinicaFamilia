@@ -1,4 +1,39 @@
-_isProcessing = true;
+import 'package:flutter/material.dart';
+import '../services/api_service.dart';
+import 'home_screen.dart';
+
+class QrScannerScreen extends StatefulWidget {
+  const QrScannerScreen({super.key});
+
+  @override
+  State<QrScannerScreen> createState() => _QrScannerScreenState();
+}
+
+class _QrScannerScreenState extends State<QrScannerScreen> {
+  final TextEditingController _controller = TextEditingController();
+  final FocusNode _focusNode = FocusNode();
+  bool _isProcessing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      FocusScope.of(context).requestFocus(_focusNode);
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _procesarCodigo(String qrCode) async {
+    if (qrCode.trim().isEmpty || _isProcessing) return;
+
+    setState(() {
+      _isProcessing = true;
     });
 
     if (qrCode.length < 10) {
@@ -107,17 +142,19 @@ _isProcessing = true;
                     const SizedBox(height: 20),
                     SizedBox(
                       width: double.infinity,
-                      child: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blueAccent,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blueAccent,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
-                      ).wrap(
-                        ElevatedButton(
-                          onPressed: () => _procesarCodigo(_controller.text),
-                          child: const Text('Validar Código', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                        onPressed: () => _procesarCodigo(_controller.text),
+                        child: const Text(
+                          'Validar Código',
+                          style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
                         ),
                       ),
                     ),
