@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:google_mlkit_barcode_scanning/google_mlkit_barcode_scanning.dart';
+import 'package:flutter_zxing/flutter_zxing.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../services/api_service.dart';
 import 'home_screen.dart';
@@ -13,67 +12,32 @@ class QrScannerScreen extends StatefulWidget {
 }
 
 class _QrScannerScreenState extends State<QrScannerScreen> {
+  bool _mostrarVisor = false;
   bool _isProcessing = false;
-  final ImagePicker _picker = ImagePicker();
-  final BarcodeScanner _barcodeScanner = BarcodeScanner(formats: [BarcodeFormat.qrCode]);
 
-  @override
-  void dispose() {
-    _barcodeScanner.close();
-    super.dispose();
-  }
-
-  Future<void> _escanearQR() async {
+  Future<void> _iniciarEscaneo() async {
     final status = await Permission.camera.request();
     if (!status.isGranted) {
       if (!mounted) return;
-      _showErrorDialog("Se requiere conceder el permiso de la cámara para poder escanear el código QR.");
+      _showErrorDialog("Se requiere el permiso de la cámara para escanear el QR.");
       return;
     }
 
-    try {
-      // Abre el componente de captura optimizado de Google
-      final XFile? foto = await _picker.pickImage(
-        source: ImageSource.camera,
-        imageQuality: 90,
-      );
+    setState(() {
+      _mostrarVisor = true;
+    });
+  }
 
-      if (foto == null) return;
-
-      if (!mounted) return;
+  void _onDetect(Code result) async {
+    if (_isProcessing) return;
+    if (result.text != null && result.text!.isNotEmpty) {
+      final qrCode = result.text!;
+      
       setState(() {
         _isProcessing = true;
       });
 
-      final inputImage = InputImage.fromFilePath(foto.path);
-      final List<Barcode> barcodes = await _barcodeScanner.processImage(inputImage);
-
-      if (barcodes.isNotEmpty) {
-        String? codigoLeido;
-        for (final barcode in barcodes) {
-          if (barcode.rawValue != null && barcode.rawValue!.isNotEmpty) {
-            codigoLeido = barcode.rawValue;
-            break;
-          }
-        }
-
-        if (codigoLeido != null) {
-          _validarCodigoEnApi(codigoLeido);
-          return;
-        }
-      }
-
-      if (!mounted) return;
-      setState(() {
-        _isProcessing = false;
-      });
-      _showErrorDialog("No se detectó ningún código QR. Por favor, asegúrese de enfocar bien el código e intente de nuevo.");
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _isProcessing = false;
-      });
-      _showErrorDialog("Ocurrió un error al procesar el escaneo: $e");
+      _validarCodigoEnApi(qrCode);
     }
   }
 
@@ -81,8 +45,9 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
     if (qrCode.length < 10) {
       setState(() {
         _isProcessing = false;
+        _mostrarVisor = false;
       });
-      _showErrorDialog("El código QR escaneado no tiene un formato válido.");
+      _showErrorDialog("El código QR no tiene un formato válido.");
       return;
     }
 
@@ -104,6 +69,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
     } else {
       setState(() {
         _isProcessing = false;
+        _mostrarVisor = false;
       });
       _showErrorDialog(resultado.message);
     }
@@ -133,22 +99,36 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         backgroundColor: Colors.blueAccent,
         foregroundColor: Colors.white,
       ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: _isProcessing
-              ? const Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 20),
-                    Text(
-                      "Validando código QR en el sistema...",
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+      body: _mostrarVisor
+          ? Stack(
+              children: [
+                ReaderWidget(
+                  onScan: _onDetect,
+                  scanDelay: const Duration(milliseconds: 500),
+                ),
+                if (_isProcessing)
+                  Container(
+                    color: Colors.black54,
+                    child: const Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircularProgressIndicator(color: Colors.white),
+                          SizedBox(height: 16),
+                          Text(
+                            "Validando código QR...",
+                            style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
-                )
-              : Column(
+              ],
+            )
+          : Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const Icon(
@@ -158,7 +138,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                     ),
                     const SizedBox(height: 24),
                     const Text(
-                      'Presione el botón para iniciar el escáner de acceso:',
+                      'Presione el botón para abrir el visor integrado y escanear el código QR automáticamente en tiempo real:',
                       textAlign: TextAlign.center,
                       style: TextStyle(fontSize: 16, color: Colors.black87, height: 1.4),
                     ),
@@ -177,13 +157,13 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                         ),
                         icon: const Icon(Icons.camera_alt_rounded, size: 24),
                         label: const Text('Escanear Código QR'),
-                        onPressed: _escanearQR,
+                        onPressed: _iniciarEscaneo,
                       ),
                     ),
                   ],
                 ),
-        ),
-      ),
+              ),
+            ),
     );
   }
 }
