@@ -24,21 +24,27 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
       facing: CameraFacing.back,
       torchEnabled: false,
     );
-    _verificarPermisos();
+    _verificarYArrancarCamara();
   }
 
-  Future<void> _verificarPermisos() async {
+  Future<void> _verificarYArrancarCamara() async {
     final status = await Permission.camera.request();
+    if (!status.isGranted) {
+      if (!mounted) return;
+      setState(() {
+        _hasPermission = false;
+      });
+      return;
+    }
+
     setState(() {
-      _hasPermission = status.isGranted;
+      _hasPermission = true;
     });
 
-    if (_hasPermission) {
-      try {
-        await _controller.start();
-      } catch (e) {
-        debugPrint("Error al iniciar la cámara: $e");
-      }
+    try {
+      await _controller.start();
+    } catch (e) {
+      debugPrint("Error al iniciar cámara: $e");
     }
   }
 
@@ -141,7 +147,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                         backgroundColor: Colors.blueAccent,
                         foregroundColor: Colors.white,
                       ),
-                      onPressed: _verificarPermisos,
+                      onPressed: _verificarYArrancarCamara,
                       child: const Text("Conceder Permiso"),
                     ),
                   ],
@@ -163,6 +169,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                   ),
                 )
               : Stack(
+                  fit: StackFit.expand, // Fuerza a que el visor ocupe toda la pantalla de manera fluida
                   children: [
                     MobileScanner(
                       controller: _controller,
