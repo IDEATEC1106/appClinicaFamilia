@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_zxing/flutter_zxing.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../services/api_service.dart';
 import 'home_screen.dart';
@@ -13,7 +13,25 @@ class QrScannerScreen extends StatefulWidget {
 
 class _QrScannerScreenState extends State<QrScannerScreen> {
   bool _mostrarVisor = false;
-  bool _isProcessing = false;
+  bool _isScanned = false;
+  late final MobileScannerController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = MobileScannerController(
+      detectionSpeed: DetectionSpeed.noDuplicates,
+      facing: CameraFacing.back,
+      torchEnabled: false,
+      autoStart: false,
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   Future<void> _iniciarEscaneo() async {
     final status = await Permission.camera.request();
@@ -26,28 +44,25 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
     setState(() {
       _mostrarVisor = true;
     });
-  }
 
-  void _onDetect(Code result) async {
-    if (_isProcessing) return;
-    if (result.text != null && result.text!.isNotEmpty) {
-      final qrCode = result.text!;
-      
-      setState(() {
-        _isProcessing = true;
-      });
-
-      _validarCodigoEnApi(qrCode);
+    await Future.delayed(const Duration(milliseconds: 300));
+    try {
+      await _controller.start();
+    } catch (e) {
+      debugPrint("Error al iniciar la cámara: $e");
     }
   }
 
-  void _validarCodigoEnApi(String qrCode) async {
+  void _processQRCode(String qrCode) async {
+    if (_isScanned) return;
+    setState(() {
+      _isScanned = true;
+    });
+
+    await _controller.stop();
+
     if (qrCode.length < 10) {
-      setState(() {
-        _isProcessing = false;
-        _mostrarVisor = false;
-      });
-      _showErrorDialog("El código QR no tiene un formato válido.");
+      _showErrorDialog("El código QR no tiene el formato válido.");
       return;
     }
 
@@ -67,10 +82,6 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         ),
       );
     } else {
-      setState(() {
-        _isProcessing = false;
-        _mostrarVisor = false;
-      });
       _showErrorDialog(resultado.message);
     }
   }
@@ -83,8 +94,14 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         content: Text(message),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Entendido"),
+            onPressed: () {
+              Navigator.pop(context);
+              setState(() {
+                _isScanned = false;
+                _mostrarVisor = false;
+              });
+            },
+            child: const Text("Reintentar"),
           ),
         ],
       ),
@@ -98,31 +115,64 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         title: const Text('Escanee el Código QR de Acceso'),
         backgroundColor: Colors.blueAccent,
         foregroundColor: Colors.white,
+        actions: _mostrarVisor
+            ? [
+                IconButton(
+                  icon: const Icon(Icons.flash_on),
+                  onPressed: () => _controller.toggleTorch(),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.flip_camera_ios),
+                  onPressed: () => _controller.switchCamera(),
+                ),
+              ]
+            : null,
       ),
       body: _mostrarVisor
-          ? Stack(
+          ? Column(
               children: [
-                ReaderWidget(
-                  onScan: _onDetect,
-                  scanDelay: const Duration(milliseconds: 500),
-                ),
-                if (_isProcessing)
-                  Container(
-                    color: Colors.black54,
-                    child: const Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          CircularProgressIndicator(color: Colors.white),
-                          SizedBox(height: 16),
-                          Text(
-                            "Validando código QR...",
-                            style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                          ),
-                        ],
+                Expanded(
+                  child: Stack(
+                    children: [
+                      MobileScanner(
+                        controller: _controller,
+                        onDetect: (capture) {
+                          final List<Barcode> barcodes = capture.barcodes;
+                          for (final barcode in barcodes) {
+                            if (barcode.rawValue != null && barcode.rawValue!.isNotEmpty) {
+                              _processQRCode(barcode.rawValue!);
+                              break;
+                            }
+                          }
+                        },
                       ),
+                      Center(
+                        child: Container(
+                          width: 250,
+                          height: 250,
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.blueAccent, width: 3),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 16.0),
+                  color: Colors.black87,
+                  child: const Text(
+                    'Enfoque el Código QR dentro del recuadro',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
+                ),
               ],
             )
           : Center(
