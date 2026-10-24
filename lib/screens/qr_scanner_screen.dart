@@ -122,7 +122,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                         ],
                       ),
                     ),
-                  ],
+                  ),
               ],
             )
           : Center(
