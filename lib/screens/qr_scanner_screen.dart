@@ -23,7 +23,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   }
 
   Future<void> _inicializarCamaraYWeb() async {
-    // Solicita el permiso de la cámara de manera automática al abrir la pantalla
+    // 1. Solicitar permiso a nivel de aplicación Android
     final status = await Permission.camera.request();
     
     if (!status.isGranted) {
@@ -32,8 +32,20 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
       return;
     }
 
+    // 2. Configurar el WebView y autorizar solicitudes de medios del navegador interno
     _webViewController = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(Colors.black)
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onWebResourceError: (WebResourceError error) {
+            debugPrint("WebView error: ${error.description}");
+          },
+        ),
+      )
+      ..setOnConsoleMessage((JavaScriptConsoleMessage consoleMessage) {
+        debugPrint("JS: ${consoleMessage.message}");
+      })
       ..addJavaScriptChannel(
         'QRBridge',
         onMessageReceived: (JavaScriptMessage message) {
@@ -41,6 +53,10 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         },
       )
       ..loadHtmlString(_htmlScannerContent);
+
+    // Permitir explícitamente el acceso a la cámara dentro del motor WebView (Vital para evitar pantalla negra)
+    final androidController = _webViewController.platform as AndroidWebViewController;
+    androidController.setMediaPlaybackRequiresUserGesture(false);
 
     if (mounted) {
       setState(() {
@@ -122,18 +138,17 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
     );
   }
 
-  // HTML optimizado para abrir la cámara de inmediato en pantalla completa
   final String _htmlScannerContent = '''
     <!DOCTYPE html>
     <html>
     <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
         <script src="https://unpkg.com/html5-qrcode"></script>
         <style>
             body { margin: 0; background-color: #000; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; color: white; font-family: sans-serif; }
             #reader { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; }
             #reader video { width: 100% !important; height: 100% !important; object-fit: cover !important; }
-            .overlay { position: absolute; bottom: 40px; background: rgba(0,0,0,0.7); padding: 12px 24px; border-radius: 8px; font-size: 15px; text-align: center; z-index: 999; }
+            .overlay { position: absolute; bottom: 50px; background: rgba(0,0,0,0.75); padding: 12px 24px; border-radius: 8px; font-size: 15px; text-align: center; z-index: 999; border: 1px solid rgba(255,255,255,0.2); }
         </style>
     </head>
     <body>
@@ -150,12 +165,29 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
             }
 
             const html5QrCode = new Html5Qrcode("reader");
-            html5QrCode.start(
-                { facingMode: "environment" },
-                { fps: 15, qrbox: { width: 250, height: 250 } },
-                onScanSuccess
-            ).catch(err => {
-                document.getElementById('status').innerText = "No se pudo acceder a la cámara.";
+            Html5Qrcode.getCameras().devices.then(devices => {
+                if (devices && devices.length) {
+                    // Selecciona la cámara trasera por defecto
+                    let cameraId = devices.length > 1 ? devices[devices.length - 1].id : devices[0].id;
+                    html5QrCode.start(
+                        cameraId,
+                        { fps: 20, qrbox: { width: 260, height: 260 } },
+                        onScanSuccess
+                    ).catch(err => {
+                        document.getElementById('status').innerText = "Error al iniciar visor: " + err;
+                    });
+                } else {
+                    document.getElementById('status').innerText = "No se encontraron cámaras disponibles.";
+                }
+            }).catch(err => {
+                // Intento alternativo directo por entorno si falla la enumeración
+                html5QrCode.start(
+                    { facingMode: "environment" },
+                    { fps: 20, qrbox: { width: 260, height: 260 } },
+                    onScanSuccess
+                ).catch(e => {
+                    document.getElementById('status').innerText = "Error crítico de cámara.";
+                });
             });
         </script>
     </body>
