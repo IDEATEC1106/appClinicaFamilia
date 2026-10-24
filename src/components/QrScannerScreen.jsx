@@ -1,60 +1,73 @@
 import React, { useEffect } from 'react';
-import { Html5Qrcode } from 'html5-qrcode';
+import { BarcodeScanner } from '@capacitor-community/barcode-scanner';
 
 export default function QrScannerScreen({ onScanSuccess, onCancel }) {
   useEffect(() => {
-    const scannerId = 'reader-container';
-    const html5QrCode = new Html5Qrcode(scannerId);
-    let isScanning = true;
+    let isMounted = true;
 
-    const startScanner = async () => {
+    const startNativeScan = async () => {
       try {
-        await html5QrCode.start(
-          { facingMode: 'environment' },
-          {
-            fps: 10,
-            qrbox: { width: 250, height: 250 },
-          },
-          (decodedText) => {
-            if (isScanning) {
-              isScanning = false;
-              html5QrCode.stop().then(() => {
-                onScanSuccess(decodedText);
-              }).catch(() => {
-                onScanSuccess(decodedText);
-              });
-            }
-          },
-          (errorMessage) => {
-            // Ignora errores de escaneo continuo mientras busca el código
-          }
-        );
+        // Solicitar permiso nativo directamente a Android
+        const status = await BarcodeScanner.checkPermission({ force: true });
+        
+        if (!status.granted) {
+          alert('Se requiere permiso de la cámara para escanear el código QR.');
+          onCancel();
+          return;
+        }
+
+        // Ocultar el fondo web para que se vea la cámara nativa detrás
+        document.body.style.background = 'transparent';
+        document.documentElement.style.background = 'transparent';
+        const rootElement = document.getElementById('root');
+        if (rootElement) rootElement.style.background = 'transparent';
+
+        await BarcodeScanner.hideBackground(); // Oculta la vista web
+        
+        // Iniciar el escaneo nativo en tiempo real
+        const result = await BarcodeScanner.startScan();
+        
+        if (result.hasContent && isMounted) {
+          await BarcodeScanner.showBackground();
+          onScanSuccess(result.content);
+        }
       } catch (err) {
-        console.error('Error al iniciar la cámara:', err);
-        alert('No se pudo acceder a la cámara. Por favor, asegúrese de otorgar los permisos necesarios en la configuración de su teléfono.');
+        console.error('Error en escáner nativo:', err);
+        await BarcodeScanner.showBackground().catch(() => {});
         onCancel();
       }
     };
 
-    startScanner();
+    startNativeScan();
 
     return () => {
-      isScanning = false;
-      html5QrCode.stop().catch(() => {});
+      isMounted = false;
+      BarcodeScanner.stopScan().catch(() => {});
+      BarcodeScanner.showBackground().catch(() => {});
+      document.body.style.background = '';
+      document.documentElement.style.background = '';
+      const rootElement = document.getElementById('root');
+      if (rootElement) rootElement.style.background = '';
     };
   }, [onScanSuccess, onCancel]);
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: '#000', zIndex: 9999, display: 'flex', flexDirection: 'column' }}>
-      {/* Botón superior para volver */}
-      <div style={{ padding: '20px', zIndex: 10000 }}>
+    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 99999, pointerEvents: 'none' }}>
+      {/* Botón flotante superior para cancelar y volver */}
+      <div style={{ position: 'absolute', top: '40px', left: '20px', zIndex: 100000, pointerEvents: 'auto' }}>
         <button 
-          onClick={onCancel}
+          onClick={async () => {
+            try {
+              await BarcodeScanner.stopScan();
+              await BarcodeScanner.showBackground();
+            } catch (e) {}
+            onCancel();
+          }}
           style={{
-            background: 'rgba(255,255,255,0.2)',
+            background: 'rgba(0,0,0,0.7)',
             color: '#fff',
             border: 'none',
-            padding: '10px 20px',
+            padding: '12px 24px',
             borderRadius: '8px',
             fontSize: '16px',
             fontWeight: 'bold',
@@ -63,11 +76,6 @@ export default function QrScannerScreen({ onScanSuccess, onCancel }) {
         >
           ← Volver
         </button>
-      </div>
-
-      {/* Contenedor donde se dibuja la cámara */}
-      <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-        <div id="reader-container" style={{ width: '100%', maxWidth: '400px' }}></div>
       </div>
     </div>
   );
