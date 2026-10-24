@@ -161,17 +161,19 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                         const SizedBox(height: 35),
                         SizedBox(
                           width: double.infinity,
-                          child: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blueAccent,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blueAccent,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                             ),
-                          ).wrap(
-                            ElevatedButton(
-                              onPressed: _activarCamara,
-                              child: const Text('Iniciar Escáner', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                            onPressed: _activarCamara,
+                            child: const Text(
+                              'Iniciar Escáner',
+                              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
                             ),
                           ),
                         ),
@@ -190,39 +192,39 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                           if (barcode.rawValue != null && barcode.rawValue!.isNotEmpty) {
                             _procesarQrDetectado(barcode.rawValue!);
                             break;
+                          }
                         }
-                      }
-                    },
-                  ),
-                  Center(
-                    child: Container(
-                      width: 260,
-                      height: 260,
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.blueAccent, width: 3),
-                        borderRadius: BorderRadius.circular(16),
+                      },
+                    ),
+                    Center(
+                      child: Container(
+                        width: 260,
+                        height: 260,
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.blueAccent, width: 3),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                       ),
                     ),
-                  ),
-                  Positioned(
-                    bottom: 40,
-                    left: 20,
-                    right: 20,
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.black54,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Text(
-                        'Enfoque el Código QR dentro del recuadro',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.white, fontSize: 15),
+                    Positioned(
+                      bottom: 40,
+                      left: 20,
+                      right: 20,
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.black54,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text(
+                          'Enfoque el Código QR dentro del recuadro',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.white, fontSize: 15),
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
     );
   }
 }
