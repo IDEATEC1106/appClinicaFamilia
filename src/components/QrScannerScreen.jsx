@@ -1,70 +1,106 @@
-import React, { useRef } from 'react';
+import React, { useEffect, useState } from 'react';
+import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
 
 export default function QrScannerScreen({ onScanSuccess, onCancel }) {
-  const fileInputRef = useRef(null);
+  const [escaneando, setEscaneando] = useState(false);
 
-  // Esta función abre directamente la cámara nativa del celular para tomar foto o escanear
-  const handleCapture = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (uploadEvent) => {
-        // Pasa el resultado de la imagen capturada para procesarla
-        onScanSuccess(uploadEvent.target.result);
-      };
-      reader.readAsDataURL(file);
-    } else {
-      onCancel();
-    }
-  };
+  useEffect(() => {
+    let isMounted = true;
+
+    const iniciarVisorReal = async () => {
+      try {
+        // 1. Comprobar permisos nativos de cámara
+        const status = await BarcodeScanner.checkPermissions();
+        let granted = status.camera === 'granted';
+
+        if (!granted) {
+          const req = await BarcodeScanner.requestPermissions();
+          granted = req.camera === 'granted';
+        }
+
+        if (!granted) {
+          alert('Se requieren permisos de cámara para el escaneo en vivo.');
+          onCancel();
+          return;
+        }
+
+        if (!isMounted) return;
+
+        // 2. Hacer transparente el fondo de la app para ver el visor nativo de la cámara debajo
+        document.body.style.background = 'transparent';
+        document.documentElement.style.background = 'transparent';
+        setEscaneando(true);
+
+        // 3. Registrar el detector de códigos en tiempo real (modo Yape)
+        await BarcodeScanner.addListener('barcodeScanned', async event => {
+          if (event.barcode && isMounted) {
+            isMounted = false;
+            await BarcodeScanner.stopScan();
+            BarcodeScanner.removeAllListeners();
+            document.body.style.background = '';
+            document.documentElement.style.background = '';
+            onScanSuccess(event.barcode.displayValue);
+          }
+        });
+
+        // 4. Iniciar el escáner nativo en vivo de Google ML Kit
+        await BarcodeScanner.startScan();
+
+      } catch (error) {
+        console.error('Error al iniciar el visor en vivo:', error);
+        if (isMounted) {
+          document.body.style.background = '';
+          document.documentElement.style.background = '';
+          onCancel();
+        }
+      }
+    };
+
+    iniciarVisorReal();
+
+    return () => {
+      isMounted = false;
+      BarcodeScanner.stopScan().catch(() => {});
+      BarcodeScanner.removeAllListeners().catch(() => {});
+      document.body.style.background = '';
+      document.documentElement.style.background = '';
+    };
+  }, [onScanSuccess, onCancel]);
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: '#000', zIndex: 99999, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
-      
-      {/* Botón Volver */}
-      <div style={{ position: 'absolute', top: '40px', left: '20px', zIndex: 100000 }}>
+    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 99999 }}>
+      {/* Botón flotante para cerrar el visor en cualquier momento */}
+      <div style={{ position: 'absolute', top: '40px', left: '20px', pointerEvents: 'auto', zIndex: 100000 }}>
         <button 
-          onClick={onCancel}
-          style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none', padding: '12px 24px', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}
+          onClick={async () => {
+            try {
+              await BarcodeScanner.stopScan();
+              BarcodeScanner.removeAllListeners();
+            } catch (e) {}
+            document.body.style.background = '';
+            document.documentElement.style.background = '';
+            onCancel();
+          }}
+          style={{ 
+            background: 'rgba(0,0,0,0.7)', 
+            color: '#fff', 
+            border: '2px solid #fff', 
+            padding: '10px 20px', 
+            borderRadius: '20px', 
+            fontSize: '15px', 
+            fontWeight: 'bold', 
+            cursor: 'pointer' 
+          }}
         >
-          ← Volver
+          ✕ Cancelar
         </button>
       </div>
 
-      <div style={{ textAlign: 'center', padding: '20px' }}>
-        <p style={{ color: '#fff', fontSize: '18px', marginBottom: '20px' }}>
-          Pulsa el botón para abrir la cámara y capturar el código:
-        </p>
-
-        {/* Input nativo de tipo file con captura de cámara directa */}
-        <input 
-          type="file" 
-          accept="image/*" 
-          capture="environment" 
-          ref={fileInputRef} 
-          onChange={handleCapture}
-          style={{ display: 'none' }} 
-          id="cameraInput"
-        />
-
-        <label 
-          htmlFor="cameraInput" 
-          style={{ 
-            backgroundColor: '#007bff', 
-            color: '#fff', 
-            padding: '16px 32px', 
-            borderRadius: '12px', 
-            fontSize: '18px', 
-            fontWeight: 'bold', 
-            cursor: 'pointer',
-            display: 'inline-block',
-            boxShadow: '0 4px 10px rgba(0,0,0,0.5)'
-          }}
-        >
-          Abrir Cámara / Escanear
-        </label>
-      </div>
-
+      {escaneando && (
+        <div style={{ position: 'absolute', bottom: '60px', width: '100%', textAlign: 'center', color: '#fff', textShadow: '0 2px 4px rgba(0,0,0,0.8)', fontSize: '16px' }}>
+          Enfoque el código QR dentro del recuadro
+        </div>
+      )}
     </div>
   );
 }
