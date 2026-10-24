@@ -35,6 +35,7 @@ jobs:
       run: |
         cd android
         chmod +x gradlew
+        ./gradlew clean
         ./gradlew assembleDebug
 
     - name: Upload APK Artifact
