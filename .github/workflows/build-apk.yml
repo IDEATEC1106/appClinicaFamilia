@@ -16,7 +16,7 @@ jobs:
     - name: Set up Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '18'
+        node-version: '22'
 
     - name: Install dependencies
       run: npm install
@@ -26,7 +26,7 @@ jobs:
 
     - name: Install Capacitor and Android platform
       run: |
-        npm install @capacitor/core@latest @capacitor/cli@latest @capacitor/android@latest
+        npm install @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6
         npx cap init app-clinica-familia com.ideatec.appclinica --web-dir build
         npx cap add android
         npx cap sync android
@@ -35,7 +35,6 @@ jobs:
       run: |
         cd android
         chmod +x gradlew
-        rm -rf ~/.gradle/caches/
         ./gradlew assembleDebug --no-daemon
 
     - name: Upload APK Artifact
