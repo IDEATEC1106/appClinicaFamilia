@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:google_mlkit_barcode_scanning/google_mlkit_barcode_scanning.dart';
 import '../services/api_service.dart';
 import 'home_screen.dart';
 
@@ -12,53 +13,71 @@ class QrScannerScreen extends StatefulWidget {
 }
 
 class _QrScannerScreenState extends State<QrScannerScreen> {
-  late final MobileScannerController _scannerController;
+  final ImagePicker _picker = ImagePicker();
   bool _isProcessing = false;
-  bool _hasPermission = false;
 
   @override
   void initState() {
     super.initState();
-    _scannerController = MobileScannerController(
-      detectionSpeed: DetectionSpeed.noDuplicates,
-      facing: CameraFacing.back,
-      torchEnabled: false,
-    );
-    _verificarPermisosYIniciar();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _abrirCamaraDirecta();
+    });
   }
 
-  Future<void> _verificarPermisosYIniciar() async {
+  Future<void> _abrirCamaraDirecta() async {
     final status = await Permission.camera.request();
-    setState(() {
-      _hasPermission = status.isGranted;
-    });
-
-    if (_hasPermission) {
-      _scannerController.start();
-    }
-  }
-
-  @override
-  void dispose() {
-    _scannerController.dispose();
-    super.dispose();
-  }
-
-  void _procesarQrDetectado(String qrCode) async {
-    if (_isProcessing || qrCode.trim().isEmpty) return;
-
-    setState(() {
-      _isProcessing = true;
-    });
-
-    await _scannerController.stop();
-
-    if (qrCode.length < 10) {
-      _showErrorDialog("El código QR escaneado no tiene un formato válido.");
+    if (!status.isGranted) {
+      if (!mounted) return;
+      _showErrorDialog("Se requiere el permiso de la cámara para escanear el código QR.");
       return;
     }
 
-    final resultado = await ApiService.validarQr(qrCode.trim());
+    try {
+      final XFile? photo = await _picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 90,
+      );
+
+      if (photo == null) {
+        return;
+      }
+
+      setState(() {
+        _isProcessing = true;
+      });
+
+      final inputImage = InputImage.fromFilePath(photo.path);
+      final barcodeScanner = BarcodeScanner(formats: [BarcodeFormat.qrCode]);
+      final List<Barcode> barcodes = await barcodeScanner.processImage(inputImage);
+      await barcodeScanner.close();
+
+      if (barcodes.isNotEmpty && barcodes.first.rawValue != null) {
+        final String qrCode = barcodes.first.rawValue!;
+        _processQRCode(qrCode);
+      } else {
+        setState(() {
+          _isProcessing = false;
+        });
+        _showErrorDialog("No se detectó ningún código QR válido en la foto. Intente de nuevo.");
+      }
+    } catch (e) {
+      setState(() {
+        _isProcessing = false;
+      });
+      _showErrorDialog("Error al acceder a la cámara: $e");
+    }
+  }
+
+  void _processQRCode(String qrCode) async {
+    if (qrCode.length < 10) {
+      setState(() {
+        _isProcessing = false;
+      });
+      _showErrorDialog("El código QR no tiene un formato válido.");
+      return;
+    }
+
+    final resultado = await ApiService.validarQr(qrCode);
 
     if (!mounted) return;
 
@@ -74,6 +93,9 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         ),
       );
     } else {
+      setState(() {
+        _isProcessing = false;
+      });
       _showErrorDialog(resultado.message);
     }
   }
@@ -81,7 +103,6 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   void _showErrorDialog(String message) {
     showDialog(
       context: context,
-      barrierDismissible: false,
       builder: (context) => AlertDialog(
         title: const Text("Aviso"),
         content: Text(message),
@@ -89,12 +110,9 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              setState(() {
-                _isProcessing = false;
-              });
-              _scannerController.start();
+              _abrirCamaraDirecta();
             },
-            child: const Text("Escanear de nuevo"),
+            child: const Text("Reintentar"),
           ),
         ],
       ),
@@ -108,101 +126,50 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         title: const Text('Escaneo de Código QR'),
         backgroundColor: Colors.blueAccent,
         foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.flash_on),
-            onPressed: () => _scannerController.toggleTorch(),
-          ),
-          IconButton(
-            icon: const Icon(Icons.flip_camera_ios),
-            onPressed: () => _scannerController.switchCamera(),
-          ),
-        ],
       ),
-      body: !_hasPermission
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: _isProcessing
+              ? const Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.camera_alt, size: 80, color: Colors.grey),
-                    const SizedBox(height: 16),
-                    const Text(
-                      "Se requiere conceder acceso a la cámara para escanear el código QR.",
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 16),
+                    CircularProgressIndicator(),
+                    SizedBox(height: 20),
+                    Text(
+                      "Validando código en el sistema...",
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                     ),
-                    const SizedBox(height: 24),
+                  ],
+                )
+              : Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.camera_alt_rounded,
+                      size: 100,
+                      color: Colors.blueAccent,
+                    ),
+                    const SizedBox(height: 20),
+                    const Text(
+                      'Activando cámara para escaneo automático...',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 16, color: Colors.black87),
+                    ),
+                    const SizedBox(height: 30),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blueAccent,
                         foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                       ),
-                      onPressed: _verificarPermisosYIniciar,
-                      child: const Text("Conceder Permiso"),
+                      onPressed: _abrirCamaraDirecta,
+                      child: const Text('Abrir Cámara Nuevamente'),
                     ),
                   ],
                 ),
-              ),
-            )
-          : _isProcessing
-              ? const Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      CircularProgressIndicator(),
-                      SizedBox(height: 20),
-                      Text(
-                        "Validando código en el sistema...",
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                      ),
-                    ],
-                  ),
-                )
-              : Stack(
-                  children: [
-                    MobileScanner(
-                      controller: _scannerController,
-                      onDetect: (capture) {
-                        final List<Barcode> barcodes = capture.barcodes;
-                        for (final barcode in barcodes) {
-                          if (barcode.rawValue != null && barcode.rawValue!.isNotEmpty) {
-                            _procesarQrDetectado(barcode.rawValue!);
-                            break;
-                          }
-                        }
-                      },
-                    ),
-                    Center(
-                      child: Container(
-                        width: 260,
-                        height: 260,
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.blueAccent, width: 3),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      bottom: 40,
-                      left: 20,
-                      right: 20,
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.black54,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Text(
-                          'Enfoque el Código QR dentro del recuadro',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.white, fontSize: 15),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+        ),
+      ),
     );
   }
 }
