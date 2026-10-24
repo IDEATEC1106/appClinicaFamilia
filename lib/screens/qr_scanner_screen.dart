@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../services/api_service.dart';
 import 'home_screen.dart';
@@ -23,7 +24,6 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   }
 
   Future<void> _inicializarCamaraYWeb() async {
-    // 1. Solicitar permiso a nivel de aplicación Android
     final status = await Permission.camera.request();
     
     if (!status.isGranted) {
@@ -32,20 +32,9 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
       return;
     }
 
-    // 2. Configurar el WebView y autorizar solicitudes de medios del navegador interno
     _webViewController = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(Colors.black)
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onWebResourceError: (WebResourceError error) {
-            debugPrint("WebView error: ${error.description}");
-          },
-        ),
-      )
-      ..setOnConsoleMessage((JavaScriptConsoleMessage consoleMessage) {
-        debugPrint("JS: ${consoleMessage.message}");
-      })
       ..addJavaScriptChannel(
         'QRBridge',
         onMessageReceived: (JavaScriptMessage message) {
@@ -54,9 +43,11 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
       )
       ..loadHtmlString(_htmlScannerContent);
 
-    // Permitir explícitamente el acceso a la cámara dentro del motor WebView (Vital para evitar pantalla negra)
-    final androidController = _webViewController.platform as AndroidWebViewController;
-    androidController.setMediaPlaybackRequiresUserGesture(false);
+    // Habilitar permisos de medios nativos para Android WebView
+    if (_webViewController.platform is AndroidWebViewController) {
+      final androidController = _webViewController.platform as AndroidWebViewController;
+      androidController.setMediaPlaybackRequiresUserGesture(false);
+    }
 
     if (mounted) {
       setState(() {
@@ -165,29 +156,12 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
             }
 
             const html5QrCode = new Html5Qrcode("reader");
-            Html5Qrcode.getCameras().devices.then(devices => {
-                if (devices && devices.length) {
-                    // Selecciona la cámara trasera por defecto
-                    let cameraId = devices.length > 1 ? devices[devices.length - 1].id : devices[0].id;
-                    html5QrCode.start(
-                        cameraId,
-                        { fps: 20, qrbox: { width: 260, height: 260 } },
-                        onScanSuccess
-                    ).catch(err => {
-                        document.getElementById('status').innerText = "Error al iniciar visor: " + err;
-                    });
-                } else {
-                    document.getElementById('status').innerText = "No se encontraron cámaras disponibles.";
-                }
-            }).catch(err => {
-                // Intento alternativo directo por entorno si falla la enumeración
-                html5QrCode.start(
-                    { facingMode: "environment" },
-                    { fps: 20, qrbox: { width: 260, height: 260 } },
-                    onScanSuccess
-                ).catch(e => {
-                    document.getElementById('status').innerText = "Error crítico de cámara.";
-                });
+            html5QrCode.start(
+                { facingMode: "environment" },
+                { fps: 20, qrbox: { width: 260, height: 260 } },
+                onScanSuccess
+            ).catch(err => {
+                document.getElementById('status').innerText = "Error al iniciar visor: " + err;
             });
         </script>
     </body>
