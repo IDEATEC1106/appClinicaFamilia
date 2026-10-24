@@ -47,7 +47,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
       });
 
       final inputImage = InputImage.fromFilePath(photo.path);
-      final barcodeScanner = BarcodeScanner(formats: [BarcodeFormat.qr]);
+      final barcodeScanner = BarcodeScanner(formats: [BarcodeFormat.qrCode]);
       final List<Barcode> barcodes = await barcodeScanner.processImage(inputImage);
       await barcodeScanner.close();
 
