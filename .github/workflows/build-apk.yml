@@ -1,4 +1,4 @@
-name: Build React Web App
+name: Build Android APK
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
 
     steps:
     - name: Checkout repository
@@ -17,16 +17,37 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: '18'
-        # Eliminamos la línea cache: 'npm' para que no exija package-lock.json
 
     - name: Install dependencies
       run: npm install
 
-    - name: Build React App
+    - name: Build Web App
       run: npm run build
 
-    - name: Upload production build artifact
+    - name: Set up Java JDK
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+
+    - name: Install Capacitor CLI and Android platform
+      run: |
+        npm install @capacitor/core @capacitor/cli @capacitor/android
+        npx cap init app-clinica-familia com.ideatec.appclinica --web-dir build --yes
+        npx cap add android
+        npx cap sync android
+
+    - name: Build APK with Gradle
+      run: |
+        cd android
+        chmod +x gradlew
+        ./gradlew assembleDebug
+
+    - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: react-build-output
-        path: build/
+        name: app-debug-apk
+        path: android/app/build/outputs/apk/debug/app-debug.apk
