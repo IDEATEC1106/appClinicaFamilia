@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Camera } from '@capacitor/camera';
 
 export default function QrScannerScreen({ onScanSuccess, onCancel }) {
   const videoRef = useRef(null);
@@ -9,37 +8,28 @@ export default function QrScannerScreen({ onScanSuccess, onCancel }) {
     let streamActive = null;
     let isMounted = true;
 
-    const iniciarVisorConPermisos = async () => {
+    const iniciarCamara = async () => {
       try {
-        // 1. Solicitar formalmente el permiso nativo al sistema operativo primero
-        const permStatus = await Camera.requestPermissions({ permissions: ['camera'] });
-        
-        if (permStatus.camera !== 'granted' && permStatus.camera !== 'limited') {
-          if (isMounted) setErrorPermiso(true);
-          return;
-        }
-
-        if (!isMounted) return;
-
-        // 2. Una vez concedido por el sistema, abrir el flujo de video de la cámara trasera
-        streamActive = await navigator.mediaDevices.getUserMedia({
+        // Solicitar stream de video directamente al navegador (esto dispara el aviso nativo de permisos en Android)
+        const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'environment' }
         });
+        streamActive = stream;
 
         if (videoRef.current && isMounted) {
-          videoRef.current.srcObject = streamActive;
+          videoRef.current.srcObject = stream;
           videoRef.current.setAttribute('playsinline', true);
           await videoRef.current.play();
         }
       } catch (err) {
-        console.error('Error al iniciar la cámara tras permisos:', err);
+        console.error('Error al acceder a la cámara:', err);
         if (isMounted) {
           setErrorPermiso(true);
         }
       }
     };
 
-    iniciarVisorConPermisos();
+    iniciarCamara();
 
     return () => {
       isMounted = false;
@@ -65,7 +55,7 @@ export default function QrScannerScreen({ onScanSuccess, onCancel }) {
       {errorPermiso ? (
         <div style={{ color: '#fff', textAlign: 'center', padding: '20px' }}>
           <p style={{ fontSize: '18px', marginBottom: '15px' }}>No se pudo acceder a la cámara.</p>
-          <p style={{ fontSize: '14px', color: '#ccc', marginBottom: '20px' }}>Por favor, otorga el permiso de cámara cuando la app lo solicite o actívalo en los Ajustes de tu teléfono.</p>
+          <p style={{ fontSize: '14px', color: '#ccc', marginBottom: '20px' }}>Por favor, otorga el permiso de cámara cuando la aplicación lo solicite.</p>
           <button onClick={onCancel} style={{ background: '#007bff', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontSize: '16px' }}>
             Regresar
           </button>
