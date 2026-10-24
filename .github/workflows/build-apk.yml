@@ -27,6 +27,15 @@ jobs:
     - name: Setup Capacitor and Android Platform
       run: |
         npm install @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6
+        
+        # Creamos el archivo de configuración asegurando que el appId esté presente
+        echo '{
+          "appId": "com.ideatec.appclinica",
+          "appName": "App Clinica Familia",
+          "webDir": "build",
+          "bundledWebRuntime": false
+        }' > capacitor.config.json
+
         rm -rf android
         npx cap add android
         npx cap sync android
