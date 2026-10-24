@@ -7,7 +7,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 5 # Evita que se quede colgado por horas
+    timeout-minutes: 5
 
     steps:
     - name: Checkout repository
@@ -17,7 +17,7 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: '18'
-        cache: 'npm'
+        # Eliminamos la línea cache: 'npm' para que no exija package-lock.json
 
     - name: Install dependencies
       run: npm install
