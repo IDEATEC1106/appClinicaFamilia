@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "dependencies": {
-    "@capacitor-mlkit/barcode-scanning": "^6.0.0",
     "@capacitor/android": "^6.0.0",
     "@capacitor/core": "^6.0.0",
+    "jsqr": "^1.4.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-scripts": "5.0.1"
