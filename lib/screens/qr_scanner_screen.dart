@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:webview_flutter/webview_flutter.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../services/api_service.dart';
 import 'home_screen.dart';
 
@@ -10,38 +12,44 @@ class QrScannerScreen extends StatefulWidget {
 }
 
 class _QrScannerScreenState extends State<QrScannerScreen> {
-  final TextEditingController _controller = TextEditingController();
-  final FocusNode _focusNode = FocusNode();
+  late final WebViewController _webViewController;
   bool _isProcessing = false;
+  bool _hasPermission = false;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      FocusScope.of(context).requestFocus(_focusNode);
+    _verificarPermisosYConfigurar();
+  }
+
+  Future<void> _verificarPermisosYConfigurar() async {
+    final status = await Permission.camera.request();
+    setState(() {
+      _hasPermission = status.isGranted;
     });
+
+    if (!_hasPermission) return;
+
+    _webViewController = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..addJavaScriptChannel(
+        'QRBridge',
+        onMessageReceived: (JavaScriptMessage message) {
+          _procesarCodigoLeido(message.message);
+        },
+      )
+      ..loadHtmlString(_htmlScannerContent);
   }
 
-  @override
-  void dispose() {
-    _controller.dispose();
-    _focusNode.dispose();
-    super.dispose();
-  }
-
-  void _procesarCodigo(String qrCode) async {
-    if (qrCode.trim().isEmpty || _isProcessing) return;
+  void _procesarCodigoLeido(String qrCode) async {
+    if (_isProcessing || qrCode.trim().isEmpty) return;
 
     setState(() {
       _isProcessing = true;
     });
 
     if (qrCode.length < 10) {
-      setState(() {
-        _isProcessing = false;
-        _controller.clear();
-      });
-      _showErrorDialog("El código QR ingresado no tiene un formato válido.");
+      _showErrorDialog("El código QR no tiene un formato válido.");
       return;
     }
 
@@ -61,10 +69,6 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         ),
       );
     } else {
-      setState(() {
-        _isProcessing = false;
-        _controller.clear();
-      });
       _showErrorDialog(resultado.message);
     }
   }
@@ -79,89 +83,106 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              FocusScope.of(context).requestFocus(_focusNode);
+              setState(() {
+                _isProcessing = false;
+              });
             },
-            child: const Text("Entendido"),
+            child: const Text("Reintentar"),
           ),
         ],
       ),
     );
   }
 
+  // HTML optimizado con html5-qrcode para lectura en tiempo real automática
+  final String _htmlScannerContent = '''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <script src="https://unpkg.com/html5-qrcode"></script>
+        <style>
+            body { margin: 0; background-color: #000; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; color: white; font-family: sans-serif; }
+            #reader { width: 100%; max-width: 400px; }
+            .msg { margin-top: 20px; font-size: 16px; text-align: center; padding: 0 20px; }
+        </style>
+    </head>
+    <body>
+        <div id="reader"></div>
+        <div class="msg" id="status">Enfoque el Código QR dentro del recuadro</div>
+        <script>
+            function onScanSuccess(decodedText, decodedResult) {
+                document.getElementById('status').innerText = "¡Código detectado! Validando...";
+                html5QrCode.stop().then(() => {
+                    QRBridge.postMessage(decodedText);
+                }).catch(err => {
+                    QRBridge.postMessage(decodedText);
+                });
+            }
+
+            const html5QrCode = new Html5Qrcode("reader");
+            html5QrCode.start(
+                { facingMode: "environment" },
+                { fps: 10, qrbox: { width: 250, height: 250 } },
+                onScanSuccess
+            ).catch(err => {
+                document.getElementById('status').innerText = "Error al iniciar la cámara. Verifique permisos.";
+            });
+        </script>
+    </body>
+    </html>
+  ''';
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Validación de Código QR'),
+        title: const Text('Escaneo de Código QR'),
         backgroundColor: Colors.blueAccent,
         foregroundColor: Colors.white,
       ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: _isProcessing
-              ? const Column(
+      body: !_hasPermission
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 20),
-                    Text(
-                      "Validando código en el sistema...",
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                    ),
-                  ],
-                )
-              : Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.qr_code_scanner_rounded,
-                      size: 120,
-                      color: Colors.blueAccent,
+                    const Icon(Icons.camera_alt, size: 80, color: Colors.grey),
+                    const SizedBox(height: 16),
+                    const Text(
+                      "Se requiere conceder acceso a la cámara para escanear el código QR.",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 16),
                     ),
                     const SizedBox(height: 24),
-                    const Text(
-                      'Ingrese o escanee el código de acceso:',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 16, color: Colors.black87, height: 1.4),
-                    ),
-                    const SizedBox(height: 30),
-                    TextField(
-                      controller: _controller,
-                      focusNode: _focusNode,
-                      autofocus: true,
-                      decoration: InputDecoration(
-                        labelText: 'Código QR / Texto',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        prefixIcon: const Icon(Icons.qr_code),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blueAccent,
+                        foregroundColor: Colors.white,
                       ),
-                      onSubmitted: _procesarCodigo,
-                    ),
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blueAccent,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        onPressed: () => _procesarCodigo(_controller.text),
-                        child: const Text(
-                          'Validar Código',
-                          style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-                        ),
-                      ),
+                      onPressed: _verificarPermisosYConfigurar,
+                      child: const Text("Conceder Permiso"),
                     ),
                   ],
                 ),
-        ),
-      ),
+              ),
+            )
+          : _isProcessing
+              ? const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 20),
+                      Text(
+                        "Validando código en el sistema...",
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                )
+              : WebViewWidget(controller: _webViewController),
     );
   }
 }
