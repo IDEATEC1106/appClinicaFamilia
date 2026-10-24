@@ -1,77 +1,71 @@
-import React from 'react';
-import jsQR from 'jsqr';
+import React, { useEffect, useRef } from 'react';
+import { Html5Qrcode } from 'html5-qrcode';
 
 export default function QrScannerScreen({ onScanSuccess, onCancel }) {
+  const html5QrCodeRef = useRef(null);
 
-  const handleCapture = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+  useEffect(() => {
+    const qrRegionId = "reader";
+    const html5QrCode = new Html5Qrcode(qrRegionId);
+    html5QrCodeRef.current = html5QrCode;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        ctx.drawImage(img, 0, 0);
-        
-        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const code = jsQR(imgData.data, imgData.width, imgData.height);
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
 
-        if (code) {
-          onScanSuccess(code.data);
-        } else {
-          alert('No se pudo leer el código QR. Intente nuevamente.');
-        }
-      };
-      img.src = event.target.result;
+    html5QrCode.start(
+      { facingMode: "environment" }, 
+      config,
+      (decodedText) => {
+        html5QrCode.stop().then(() => {
+          onScanSuccess(decodedText);
+        }).catch(() => {
+          onScanSuccess(decodedText);
+        });
+      },
+      (errorMessage) => {
+        // Ignora errores de fotogramas vacíos mientras busca el QR
+      }
+    ).catch(err => {
+      console.error("No se pudo iniciar la cámara en vivo:", err);
+      alert("No se pudo acceder a la cámara. Verifique los permisos en su dispositivo.");
+      onCancel();
+    });
+
+    return () => {
+      if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
+        html5QrCodeRef.current.stop().catch(() => {});
+      }
     };
-    reader.readAsDataURL(file);
-  };
+  }, [onScanSuccess, onCancel]);
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: '#000', zIndex: 99999, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
+    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: '#000', zIndex: 99999, display: 'flex', flexDirection: 'column' }}>
       
-      {/* Botón Volver */}
-      <div style={{ position: 'absolute', top: '40px', left: '20px' }}>
+      {/* Botón Volver flotante arriba */}
+      <div style={{ position: 'absolute', top: '40px', left: '20px', zIndex: 100000 }}>
         <button 
-          onClick={onCancel}
-          style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none', padding: '12px 24px', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}
+          onClick={async () => {
+            if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
+              await html5QrCodeRef.current.stop().catch(() => {});
+            }
+            onCancel();
+          }}
+          style={{
+            background: 'rgba(0,0,0,0.7)',
+            color: '#fff',
+            border: 'none',
+            padding: '12px 24px',
+            borderRadius: '8px',
+            fontSize: '16px',
+            fontWeight: 'bold',
+            cursor: 'pointer'
+          }}
         >
           ← Volver
         </button>
       </div>
 
-      <div style={{ textAlign: 'center', color: '#fff' }}>
-        <h2 style={{ marginBottom: '10px' }}>Escanear Código QR</h2>
-        <p style={{ color: '#aaa', marginBottom: '30px', fontSize: '14px', maxWidth: '300px' }}>
-          Presione el botón para abrir la cámara de su dispositivo y enfocar el código QR.
-        </p>
-
-        {/* Botón que abre la cámara nativa del celular */}
-        <label style={{
-          backgroundColor: '#007bff',
-          color: '#fff',
-          padding: '16px 32px',
-          borderRadius: '12px',
-          fontSize: '18px',
-          fontWeight: 'bold',
-          cursor: 'pointer',
-          display: 'inline-block',
-          boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
-        }}>
-          Abrir Cámara
-          <input 
-            type="file" 
-            accept="image/*" 
-            capture="environment" 
-            onChange={handleCapture} 
-            style={{ display: 'none' }} 
-          />
-        </label>
-      </div>
+      {/* Visor de la cámara en tiempo real */}
+      <div id="reader" style={{ width: '100%', height: '100%', backgroundColor: '#000' }}></div>
     </div>
   );
 }
