@@ -1,65 +1,61 @@
 import React, { useEffect } from 'react';
-import { BarcodeScanner } from '@capacitor-community/barcode-scanner';
+import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
 
 export default function QrScannerScreen({ onScanSuccess, onCancel }) {
   useEffect(() => {
     let isMounted = true;
 
-    const startNativeScan = async () => {
+    const startScan = async () => {
       try {
-        // Solicitar permiso nativo directamente a Android
-        const status = await BarcodeScanner.checkPermission({ force: true });
-        
-        if (!status.granted) {
-          alert('Se requiere permiso de la cámara para escanear el código QR.');
+        // Solicitar permisos de cámara de manera nativa
+        const status = await BarcodeScanner.requestPermissions();
+        if (status.camera !== 'granted') {
+          alert('Se requieren permisos de cámara para escanear el código QR.');
           onCancel();
           return;
         }
 
-        // Ocultar el fondo web para que se vea la cámara nativa detrás
+        // Hacer transparente el fondo web para ver la cámara
         document.body.style.background = 'transparent';
-        document.documentElement.style.background = 'transparent';
-        const rootElement = document.getElementById('root');
-        if (rootElement) rootElement.style.background = 'transparent';
+        const rootEl = document.getElementById('root');
+        if (rootEl) rootEl.style.background = 'transparent';
 
-        await BarcodeScanner.hideBackground(); // Oculta la vista web
-        
-        // Iniciar el escaneo nativo en tiempo real
-        const result = await BarcodeScanner.startScan();
-        
-        if (result.hasContent && isMounted) {
-          await BarcodeScanner.showBackground();
-          onScanSuccess(result.content);
-        }
+        // Escuchar cuando se detecte un código QR
+        const listener = await BarcodeScanner.addListener('barcodeScanned', async result => {
+          if (result.barcode && isMounted) {
+            await BarcodeScanner.stopScan();
+            BarcodeScanner.removeAllListeners();
+            onScanSuccess(result.barcode.displayValue);
+          }
+        });
+
+        await BarcodeScanner.startScan();
       } catch (err) {
-        console.error('Error en escáner nativo:', err);
-        await BarcodeScanner.showBackground().catch(() => {});
+        console.error('Error al iniciar el escáner:', err);
         onCancel();
       }
     };
 
-    startNativeScan();
+    startScan();
 
     return () => {
       isMounted = false;
       BarcodeScanner.stopScan().catch(() => {});
-      BarcodeScanner.showBackground().catch(() => {});
+      BarcodeScanner.removeAllListeners().catch(() => {});
       document.body.style.background = '';
-      document.documentElement.style.background = '';
-      const rootElement = document.getElementById('root');
-      if (rootElement) rootElement.style.background = '';
+      const rootEl = document.getElementById('root');
+      if (rootEl) rootEl.style.background = '';
     };
   }, [onScanSuccess, onCancel]);
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 99999, pointerEvents: 'none' }}>
-      {/* Botón flotante superior para cancelar y volver */}
-      <div style={{ position: 'absolute', top: '40px', left: '20px', zIndex: 100000, pointerEvents: 'auto' }}>
+    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 99999, background: 'transparent' }}>
+      <div style={{ position: 'absolute', top: '40px', left: '20px', zIndex: 100000 }}>
         <button 
           onClick={async () => {
             try {
               await BarcodeScanner.stopScan();
-              await BarcodeScanner.showBackground();
+              BarcodeScanner.removeAllListeners();
             } catch (e) {}
             onCancel();
           }}
