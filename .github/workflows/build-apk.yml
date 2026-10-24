@@ -24,16 +24,7 @@ jobs:
     - name: Build Web App
       run: npm run build
 
-    - name: Set up Java JDK
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'temurin'
-        java-version: '17'
-
-    - name: Setup Android SDK
-      uses: android-actions/setup-android@v3
-
-    - name: Install Capacitor CLI and Android platform
+    - name: Install Capacitor and Android platform
       run: |
         npm install @capacitor/core @capacitor/cli @capacitor/android
         npx cap init app-clinica-familia com.ideatec.appclinica --web-dir build --yes
