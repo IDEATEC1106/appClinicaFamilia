@@ -10,8 +10,7 @@ export default function App() {
     console.log("QR Detectado y validado:", codigoLeido);
     setDatosQR(codigoLeido);
     
-    // Aquí puedes agregar tu lógica si deseas validar con backend o procedimientos
-    // Si todo está bien, pasa automáticamente a la pantalla de menú:
+    // Validación exitosa, pasamos automáticamente a la pantalla de menú:
     setPantalla('menu');
   };
 
@@ -45,29 +44,13 @@ export default function App() {
         </div>
       )}
 
-      {/* 2. PANTALLA DE ESCANEO ESTILO YAPE / PLIN */}
+      {/* 2. PANTALLA DE ESCANEO NATIVO */}
       {pantalla === 'escaner' && (
         <div style={{ flex: 1, position: 'relative', backgroundColor: '#000' }}>
-          <QrScannerScreen onScanSuccess={handleScanSuccess} />
-          
-          {/* Botón flotante para cancelar y volver */}
-          <button 
-            onClick={() => setPantalla('inicio')}
-            style={{
-              position: 'absolute',
-              top: '20px',
-              left: '20px',
-              background: 'rgba(255,255,255,0.2)',
-              color: '#fff',
-              border: 'none',
-              padding: '10px 16px',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              zIndex: 10
-            }}
-          >
-            ← Volver
-          </button>
+          <QrScannerScreen 
+            onScanSuccess={handleScanSuccess} 
+            onCancel={() => setPantalla('inicio')} 
+          />
         </div>
       )}
 
@@ -90,7 +73,7 @@ export default function App() {
 
           <button 
             onClick={() => { setDatosQR(null); setPantalla('inicio'); }}
-            style={{ marginTop: 'auto', padding: '12px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold' }}
+            style={{ marginTop: 'auto', padding: '12px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}
           >
             Cerrar Sesión / Nuevo Escaneo
           </button>
