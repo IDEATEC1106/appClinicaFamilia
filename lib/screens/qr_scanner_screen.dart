@@ -19,7 +19,6 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   @override
   void initState() {
     super.initState();
-    // Abre la cámara de forma totalmente automática apenas carga la pantalla
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _abrirCamaraDirecta();
     });
@@ -40,7 +39,6 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
       );
 
       if (photo == null) {
-        // Si el usuario cancela la cámara, regresamos o permitimos reintentar
         return;
       }
 
@@ -48,7 +46,6 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         _isProcessing = true;
       });
 
-      // Procesamiento local ultra rápido con Google ML Kit
       final inputImage = InputImage.fromFilePath(photo.path);
       final barcodeScanner = BarcodeScanner(formats: [BarcodeFormat.qr]);
       final List<Barcode> barcodes = await barcodeScanner.processImage(inputImage);
