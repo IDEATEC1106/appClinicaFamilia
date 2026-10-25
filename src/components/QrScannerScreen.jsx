@@ -1,35 +1,31 @@
 import React from 'react';
-import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
+import { BarcodeScanner, BarcodeFormat } from '@capacitor-mlkit/barcode-scanning';
 
 export default function QrScannerScreen({ onScanSuccess, onCancel }) {
-
-  const iniciarEscaneoOficial = async () => {
+  
+  const iniciarEscaneo = async () => {
     try {
-      // Solicitar permisos de cámara nativos automáticamente
-      const status = await BarcodeScanner.requestPermissions();
-      if (status.camera !== 'granted') {
-        alert('Se necesita permiso de la cámara para escanear.');
+      // Solicitar permisos nativos de forma explícita
+      const permissionStatus = await BarcodeScanner.requestPermissions();
+      if (permissionStatus.camera !== 'granted') {
+        alert('Se necesitan permisos de cámara para escanear el código QR.');
         onCancel();
         return;
       }
 
-      // Ocultar fondo o preparar la interfaz si es necesario
-      document.querySelector('body').style.visibility = 'hidden';
+      // Abrir el visor nativo de Google Play Services / ML Kit
+      const result = await BarcodeScanner.scan({
+        formats: [BarcodeFormat.QrCode],
+      });
 
-      // Abrir el visor nativo de Google ML Kit
-      const result = await BarcodeScanner.startScan();
-      
-      // Restaurar la visibilidad
-      document.querySelector('body').style.visibility = 'visible';
-
-      if (result.hasContent) {
-        onScanSuccess(result.content);
+      if (result.barcodes && result.barcodes.length > 0) {
+        onScanSuccess(result.barcodes[0].rawValue);
       } else {
         onCancel();
       }
     } catch (error) {
-      document.querySelector('body').style.visibility = 'visible';
-      console.error("Error en escáner nativo:", error);
+      console.error("Error al abrir el escáner nativo:", error);
+      alert("No se pudo iniciar la cámara: " + (error.message || error));
       onCancel();
     }
   };
@@ -45,7 +41,7 @@ export default function QrScannerScreen({ onScanSuccess, onCancel }) {
       </p>
 
       <button 
-        onClick={iniciarEscaneoOficial}
+        onClick={iniciarEscaneo}
         style={{ background: '#007bff', color: '#fff', border: 'none', padding: '16px 32px', borderRadius: '12px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '15px', width: '100%', maxWidth: '300px', boxShadow: '0 4px 12px rgba(0,123,255,0.4)' }}
       >
         Escanear QR
