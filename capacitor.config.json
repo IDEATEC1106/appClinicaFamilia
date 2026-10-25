@@ -1,0 +1,8 @@
+{
+  "appId": "com.clinicafamilias.app",
+  "appName": "Clinica Familia",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "http"
+  }
+}
