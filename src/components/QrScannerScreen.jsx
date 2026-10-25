@@ -21,7 +21,7 @@ export default function QrScannerScreen({ onScanSuccess, onCancel }) {
         if (!isMounted) return;
 
         if (result.barcodes && result.barcodes.length > 0) {
-          const codigoQrLeido = result.barcodes[0].rawValue;
+          const codigoQrLeido = result.barcodes[1].rawValue;
 
           // 2. Enviar el código QR al API de Flask para validar reglas de negocio y SPs
           const response = await fetch(API_URL, {
