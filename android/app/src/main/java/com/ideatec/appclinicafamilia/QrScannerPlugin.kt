@@ -1,14 +1,42 @@
 package com.ideatec.appclinicafamilia;
 
-import android.os.Bundle;
-import com.getcapacitor.BridgeActivity;
-import com.ideatec.appclinicafamilia.QrScannerPlugin; // Importa tu plugin
+import com.getcapacitor.JSObject
+import com.getcapacitor.Plugin
+import com.getcapacitor.PluginMethod
+import com.getcapacitor.annotation.CapacitorPlugin
+import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 
-public class MainActivity extends BridgeActivity {
-    @Option
-    @Override
-    public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        registerPlugin(QrScannerPlugin.class); // Registra el plugin aquí
+@CapacitorPlugin(name = "QrScannerNativo")
+class QrScannerPlugin : Plugin() {
+
+    @PluginMethod
+    fun abrirVisor(call: PluginCall) {
+        val activity = activity
+        if (activity == null) {
+            call.reject("Actividad no disponible")
+            return
+        }
+
+        // Configurar el escáner nativo de Google Play Services
+        val options = GmsBarcodeScannerOptions.Builder()
+            .enableAutoZoom()
+            .build()
+
+        val scanner = GmsBarcodeScanning.getClient(activity, options)
+
+        scanner.startScan()
+            .addOnSuccessListener { barcode ->
+                val rawValue = barcode.rawValue ?: ""
+                val res = JSObject()
+                res.put("resultado", rawValue)
+                call.resolve(res)
+            }
+            .addOnCanceledListener {
+                call.reject("CANCELADO")
+            }
+            .addOnFailureListener { e ->
+                call.reject("Error nativo: ${e.localizedMessage}")
+            }
     }
 }
