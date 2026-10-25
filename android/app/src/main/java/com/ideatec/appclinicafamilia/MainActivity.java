@@ -2,13 +2,13 @@ package com.ideatec.appclinicafamilia;
 
 import android.os.Bundle;
 import com.getcapacitor.BridgeActivity;
-import com.ideatec.appclinicafamilia.QrScannerPlugin; // Importa tu plugin
 
 public class MainActivity extends BridgeActivity {
-    @Option
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        registerPlugin(QrScannerPlugin.class); // Registra el plugin aquí
+        
+        // ESTA LÍNEA ES LA CLAVE PARA QUE CAPACITOR RECONOZCA EL VISOR NATIVO:
+        registerPlugin(QrScannerPlugin.class);
     }
 }
