@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
 
 // ⚠️ IMPORTANTE: Reemplaza esta IP por la dirección IP de tu servidor o PC donde corre Flask
-const API_URL = 'http://192.168.15.253:5010/api/validar-qr';
+const API_URL = 'http://38.224.68.171:5010/api/validar-qr';
 
 export default function QrScannerScreen({ onScanSuccess, onCancel }) {
   const isScanning = useRef(false);
