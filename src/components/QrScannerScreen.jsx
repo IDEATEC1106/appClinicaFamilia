@@ -1,57 +1,43 @@
-import React from 'react';
+import { useEffect, useRef } from 'react';
 import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
 
 export default function QrScannerScreen({ onScanSuccess, onCancel }) {
-  
-  const iniciarEscaneo = async () => {
-    try {
-      // Ocultar elementos web si es necesario para evitar interferencias gráficas
-      document.querySelector('body').style.opacity = '0';
+  const isScanning = useRef(false);
 
-      // El plugin oficial solicita el permiso de la cámara automáticamente al invocar el escáner
-      const result = await BarcodeScanner.scan();
+  useEffect(() => {
+    let isMounted = true;
 
-      // Restaurar la visualización
-      document.querySelector('body').style.opacity = '1';
+    const iniciarEscaneoAutomatico = async () => {
+      // Evita ejecuciones dobles si el componente se vuelve a renderizar
+      if (isScanning.current) return;
+      isScanning.current = true;
 
-      if (result.barcodes && result.barcodes.length > 0) {
-        onScanSuccess(result.barcodes[0].rawValue);
-      } else {
-        onCancel();
+      try {
+        // Abre el visor nativo de Google Play Services de forma instantánea
+        const result = await BarcodeScanner.scan();
+
+        if (isMounted && result.barcodes && result.barcodes.length > 0) {
+          onScanSuccess(result.barcodes[0].rawValue);
+        } else if (isMounted) {
+          onCancel();
+        }
+      } catch (error) {
+        console.error("Error en el visor nativo:", error);
+        if (isMounted) {
+          onCancel();
+        }
+      } finally {
+        isScanning.current = false;
       }
-    } catch (error) {
-      document.querySelector('body').style.opacity = '1';
-      console.error("Error al abrir el escáner:", error);
-      
-      // Si el usuario denegó el permiso, se le avisa claramente
-      alert("No se pudo acceder a la cámara. Verifica que los permisos estén habilitados en los ajustes de tu teléfono.");
-      onCancel();
-    }
-  };
+    };
 
-  return (
-    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: '#fff', zIndex: 99999, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
-      
-      <div style={{ color: '#333', fontSize: '24px', fontWeight: 'bold', marginBottom: '10px', textAlign: 'center' }}>
-        Clínica Familia
-      </div>
-      <p style={{ color: '#666', fontSize: '15px', marginBottom: '40px', textAlign: 'center', maxWidth: '320px' }}>
-        Escanee el código QR para iniciar sesión o validar acceso
-      </p>
+    iniciarEscaneoAutomatico();
 
-      <button 
-        onClick={iniciarEscaneo}
-        style={{ background: '#007bff', color: '#fff', border: 'none', padding: '16px 32px', borderRadius: '12px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '15px', width: '100%', maxWidth: '300px', boxShadow: '0 4px 12px rgba(0,123,255,0.4)' }}
-      >
-        Escanear QR
-      </button>
+    return () => {
+      isMounted = false;
+    };
+  }, [onScanSuccess, onCancel]);
 
-      <button 
-        onClick={onCancel}
-        style={{ background: 'transparent', color: '#888', border: '1px solid #ddd', padding: '12px 24px', borderRadius: '8px', fontSize: '16px', cursor: 'pointer', width: '100%', maxWidth: '300px' }}
-      >
-        Cancelar
-      </button>
-    </div>
-  );
+  // Retorna null para no mostrar ninguna interfaz web innecesaria; la cámara toma el control absoluto.
+  return null;
 }
