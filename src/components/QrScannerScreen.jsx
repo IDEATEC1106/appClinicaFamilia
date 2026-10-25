@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
 
-// ⚠️ IMPORTANTE: Reemplaza esta IP por la dirección IP de tu servidor o PC donde corre Flask
 const API_URL = 'http://38.224.68.171:5010/api/validar-qr';
 
 export default function QrScannerScreen({ onScanSuccess, onCancel }) {
@@ -15,15 +14,26 @@ export default function QrScannerScreen({ onScanSuccess, onCancel }) {
       isScanning.current = true;
 
       try {
+        // 0. Verificar o solicitar permisos de cámara obligatorios
+        const permission = await BarcodeScanner.checkPermissions();
+        if (permission.camera !== 'granted') {
+          const reqPermission = await BarcodeScanner.requestPermissions();
+          if (reqPermission.camera !== 'granted') {
+            alert("Se necesitan permisos de cámara para escanear el QR.");
+            onCancel();
+            return;
+          }
+        }
+
         // 1. Abrir el visor nativo de la cámara automáticamente
         const result = await BarcodeScanner.scan();
 
         if (!isMounted) return;
 
         if (result.barcodes && result.barcodes.length > 0) {
-          const codigoQrLeido = result.barcodes[1].rawValue;
+          const codigoQrLeido = result.barcodes[0].rawValue;
 
-          // 2. Enviar el código QR al API de Flask para validar reglas de negocio y SPs
+          // 2. Enviar el código QR al API de Flask
           const response = await fetch(API_URL, {
             method: 'POST',
             headers: {
@@ -35,10 +45,8 @@ export default function QrScannerScreen({ onScanSuccess, onCancel }) {
           const data = await response.json();
 
           if (response.ok && data.success) {
-            // 3. Validación exitosa: pasamos los datos obtenidos (razon_social, ruc, nombre_padre)
             onScanSuccess(data.data);
           } else {
-            // 4. Error devuelto por el backend (Código caducado, no registrado, etc.)
             alert(data.message || 'Código QR no válido.');
             onCancel();
           }
@@ -46,9 +54,10 @@ export default function QrScannerScreen({ onScanSuccess, onCancel }) {
           onCancel();
         }
       } catch (error) {
-        console.error("Error en el escáner o conexión:", error);
+        console.error("Error detallado:", error);
         if (isMounted) {
-          alert("No se pudo conectar con el servidor de validación.");
+          // AQUÍ MOSTRAMOS EL ERROR REAL PARA SABER QUÉ FALLÓ
+          alert("Error técnico: " + (error.message || JSON.stringify(error)));
           onCancel();
         }
       } finally {
@@ -63,6 +72,5 @@ export default function QrScannerScreen({ onScanSuccess, onCancel }) {
     };
   }, [onScanSuccess, onCancel]);
 
-  // Retorna null ya que la interfaz visual es el visor nativo de Google Play Services
   return null;
 }
