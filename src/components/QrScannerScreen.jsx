@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
+import { CapacitorHttp } from '@capacitor/core';
 
 const API_URL = 'http://38.224.68.171:5010/api/validar-qr';
 
@@ -14,7 +15,7 @@ export default function QrScannerScreen({ onScanSuccess, onCancel }) {
       isScanning.current = true;
 
       try {
-        // Abrir el visor nativo directamente (el plugin maneja los permisos automáticamente)
+        // 1. Abrir el visor nativo de la cámara
         const result = await BarcodeScanner.scan();
 
         if (!isMounted) return;
@@ -22,18 +23,18 @@ export default function QrScannerScreen({ onScanSuccess, onCancel }) {
         if (result.barcodes && result.barcodes.length > 0) {
           const codigoQrLeido = result.barcodes[0].rawValue;
 
-          // Enviar el código QR al API de Flask
-          const response = await fetch(API_URL, {
-            method: 'POST',
+          // 2. Petición HTTP nativa (evita bloqueos de CORS y WebView)
+          const response = await CapacitorHttp.post({
+            url: API_URL,
             headers: {
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ codigo_qr: codigoQrLeido }),
+            data: { codigo_qr: codigoQrLeido },
           });
 
-          const data = await response.json();
+          const data = response.data;
 
-          if (response.ok && data.success) {
+          if (response.status >= 200 && response.status < 300 && data.success) {
             onScanSuccess(data.data);
           } else {
             alert(data.message || 'Código QR no válido.');
@@ -45,8 +46,7 @@ export default function QrScannerScreen({ onScanSuccess, onCancel }) {
       } catch (error) {
         console.error("Error en el escáner:", error);
         if (isMounted) {
-          // Si ocurre un error real, lo veremos aquí en pantalla
-          alert("Error al escanear: " + (error.message || JSON.stringify(error)));
+          alert("Error de conexión nativa: " + (error.message || JSON.stringify(error)));
           onCancel();
         }
       } finally {
