@@ -5,15 +5,22 @@ export default function QrScannerScreen({ onScanSuccess, onCancel }) {
   
   const iniciarEscaneo = async () => {
     try {
-      // Solicitar permisos nativos de forma explícita
-      const permissionStatus = await BarcodeScanner.requestPermissions();
-      if (permissionStatus.camera !== 'granted') {
-        alert('Se necesitan permisos de cámara para escanear el código QR.');
+      // 1. Comprobar permisos actuales
+      let status = await BarcodeScanner.checkPermissions();
+
+      // 2. Si no están concedidos, solicitarlos al sistema operativo
+      if (status.camera !== 'granted') {
+        status = await BarcodeScanner.requestPermissions();
+      }
+
+      // 3. Validar si el usuario denegó el acceso
+      if (status.camera !== 'granted') {
+        alert('Se requiere el permiso de la cámara para escanear. Por favor, actívalo en los ajustes de la aplicación.');
         onCancel();
         return;
       }
 
-      // Abrir el visor nativo de Google Play Services / ML Kit
+      // 4. Abrir directamente el visor nativo de Google ML Kit
       const result = await BarcodeScanner.scan({
         formats: [BarcodeFormat.QrCode],
       });
