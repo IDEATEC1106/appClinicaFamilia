@@ -2,36 +2,32 @@ import React, { useEffect, useState } from 'react';
 import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
 
 export default function QrScannerScreen({ onScanSuccess, onCancel }) {
-  const [escaneando, setEscaneando] = useState(false);
+  const [permisoConcedido, setPermisoConcedido] = useState(false);
+
+  // Solicitar permisos explícitamente mediante un botón de activación para evitar bloqueos del sistema
+  const solicitarPermisoYEscanear = async () => {
+    try {
+      const status = await BarcodeScanner.requestPermissions();
+      if (status.camera === 'granted' || status.camera === 'limited') {
+        setPermisoConcedido(true);
+      } else {
+        alert('Se requiere conceder acceso a la cámara para escanear el código QR.');
+      }
+    } catch (e) {
+      console.error('Error al pedir permisos:', e);
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
 
-    const iniciarVisorNativo = async () => {
+    const iniciarEscaneo = async () => {
+      if (!permisoConcedido) return;
+
       try {
-        // Verificar y solicitar permisos nativos directamente
-        const status = await BarcodeScanner.checkPermissions();
-        let granted = status.camera === 'granted';
-
-        if (!granted) {
-          const req = await BarcodeScanner.requestPermissions();
-          granted = req.camera === 'granted';
-        }
-
-        if (!granted) {
-          alert('Se requiere permiso de la cámara para el escaneo.');
-          onCancel();
-          return;
-        }
-
-        if (!isMounted) return;
-
-        // Hacer transparente el fondo para visualizar la cámara nativa debajo
         document.body.style.background = 'transparent';
         document.documentElement.style.background = 'transparent';
-        setEscaneando(true);
 
-        // Escuchar el evento de lectura en tiempo real
         await BarcodeScanner.addListener('barcodeScanned', async event => {
           if (event.barcode && isMounted) {
             isMounted = false;
@@ -43,11 +39,9 @@ export default function QrScannerScreen({ onScanSuccess, onCancel }) {
           }
         });
 
-        // Lanzar el visor nativo de Google ML Kit
         await BarcodeScanner.startScan();
-
       } catch (error) {
-        console.error('Error al iniciar el visor nativo:', error);
+        console.error('Error al iniciar el escáner:', error);
         if (isMounted) {
           document.body.style.background = '';
           document.documentElement.style.background = '';
@@ -56,7 +50,7 @@ export default function QrScannerScreen({ onScanSuccess, onCancel }) {
       }
     };
 
-    iniciarVisorNativo();
+    iniciarEscaneo();
 
     return () => {
       isMounted = false;
@@ -65,12 +59,35 @@ export default function QrScannerScreen({ onScanSuccess, onCancel }) {
       document.body.style.background = '';
       document.documentElement.style.background = '';
     };
-  }, [onScanSuccess, onCancel]);
+  }, [permisoConcedido, onScanSuccess, onCancel]);
+
+  if (!permisoConcedido) {
+    return (
+      <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: '#111', zIndex: 99999, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '20px', textAlign: 'center' }}>
+        <div style={{ color: '#fff', fontSize: '18px', marginBottom: '20px', fontWeight: 'bold' }}>
+          Autorización de Cámara
+        </div>
+        <p style={{ color: '#ccc', fontSize: '14px', marginBottom: '30px' }}>
+          Para activar el visor en tiempo real y leer códigos QR, necesitamos tu autorización de acceso a la cámara.
+        </p>
+        <button 
+          onClick={solicitarPermisoYEscanear}
+          style={{ background: '#28a745', color: '#fff', border: 'none', padding: '14px 28px', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '15px', width: '80%' }}
+        >
+          Permitir Cámara y Escanear
+        </button>
+        <button 
+          onClick={onCancel}
+          style={{ background: 'transparent', color: '#aaa', border: '1px solid #555', padding: '10px 20px', borderRadius: '8px', fontSize: '14px', cursor: 'pointer', width: '80%' }}
+        >
+          Cancelar
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 99999 }}>
-      
-      {/* Botón flotante para cancelar */}
       <div style={{ position: 'absolute', top: '40px', left: '20px', pointerEvents: 'auto', zIndex: 100000 }}>
         <button 
           onClick={async () => {
@@ -82,26 +99,11 @@ export default function QrScannerScreen({ onScanSuccess, onCancel }) {
             document.documentElement.style.background = '';
             onCancel();
           }}
-          style={{ 
-            background: 'rgba(0,0,0,0.7)', 
-            color: '#fff', 
-            border: '2px solid #fff', 
-            padding: '10px 20px', 
-            borderRadius: '20px', 
-            fontSize: '15px', 
-            fontWeight: 'bold', 
-            cursor: 'pointer' 
-          }}
+          style={{ background: 'rgba(0,0,0,0.7)', color: '#fff', border: '2px solid #fff', padding: '10px 20px', borderRadius: '20px', fontSize: '15px', fontWeight: 'bold', cursor: 'pointer' }}
         >
           ✕ Cancelar
         </button>
       </div>
-
-      {escaneando && (
-        <div style={{ position: 'absolute', bottom: '60px', width: '100%', textAlign: 'center', color: '#fff', textShadow: '0 2px 4px rgba(0,0,0,0.8)', fontSize: '16px', pointerEvents: 'none' }}>
-          Enfoque el código QR dentro del recuadro
-        </div>
-      )}
     </div>
   );
 }
