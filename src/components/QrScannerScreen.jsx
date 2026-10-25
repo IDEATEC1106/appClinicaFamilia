@@ -1,29 +1,18 @@
 import React from 'react';
-import { BarcodeScanner, BarcodeFormat } from '@capacitor-mlkit/barcode-scanning';
+import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
 
 export default function QrScannerScreen({ onScanSuccess, onCancel }) {
   
   const iniciarEscaneo = async () => {
     try {
-      // 1. Comprobar permisos actuales
-      let status = await BarcodeScanner.checkPermissions();
+      // Ocultar elementos web si es necesario para evitar interferencias gráficas
+      document.querySelector('body').style.opacity = '0';
 
-      // 2. Si no están concedidos, solicitarlos al sistema operativo
-      if (status.camera !== 'granted') {
-        status = await BarcodeScanner.requestPermissions();
-      }
+      // El plugin oficial solicita el permiso de la cámara automáticamente al invocar el escáner
+      const result = await BarcodeScanner.scan();
 
-      // 3. Validar si el usuario denegó el acceso
-      if (status.camera !== 'granted') {
-        alert('Se requiere el permiso de la cámara para escanear. Por favor, actívalo en los ajustes de la aplicación.');
-        onCancel();
-        return;
-      }
-
-      // 4. Abrir directamente el visor nativo de Google ML Kit
-      const result = await BarcodeScanner.scan({
-        formats: [BarcodeFormat.QrCode],
-      });
+      // Restaurar la visualización
+      document.querySelector('body').style.opacity = '1';
 
       if (result.barcodes && result.barcodes.length > 0) {
         onScanSuccess(result.barcodes[0].rawValue);
@@ -31,8 +20,11 @@ export default function QrScannerScreen({ onScanSuccess, onCancel }) {
         onCancel();
       }
     } catch (error) {
-      console.error("Error al abrir el escáner nativo:", error);
-      alert("No se pudo iniciar la cámara: " + (error.message || error));
+      document.querySelector('body').style.opacity = '1';
+      console.error("Error al abrir el escáner:", error);
+      
+      // Si el usuario denegó el permiso, se le avisa claramente
+      alert("No se pudo acceder a la cámara. Verifica que los permisos estén habilitados en los ajustes de tu teléfono.");
       onCancel();
     }
   };
