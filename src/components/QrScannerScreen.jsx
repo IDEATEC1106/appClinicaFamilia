@@ -1,27 +1,36 @@
 import React from 'react';
-import { registerPlugin } from '@capacitor/core';
-
-const QrScannerNativo = registerPlugin('QrScannerNativo');
+import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
 
 export default function QrScannerScreen({ onScanSuccess, onCancel }) {
-  
-  const iniciarEscaneoNativo = async () => {
+
+  const iniciarEscaneoOficial = async () => {
     try {
-      alert("Paso 1: Botón presionado, llamando al plugin nativo..."); // Alerta de prueba
+      // Solicitar permisos de cámara nativos automáticamente
+      const status = await BarcodeScanner.requestPermissions();
+      if (status.camera !== 'granted') {
+        alert('Se necesita permiso de la cámara para escanear.');
+        onCancel();
+        return;
+      }
+
+      // Ocultar fondo o preparar la interfaz si es necesario
+      document.querySelector('body').style.visibility = 'hidden';
+
+      // Abrir el visor nativo de Google ML Kit
+      const result = await BarcodeScanner.startScan();
       
-      const response = await QrScannerNativo.abrirVisor();
-      
-      alert("Paso 2: Respuesta recibida del nativo"); // Alerta si funcionó
-      
-      if (response && response.resultado) {
-        onScanSuccess(response.resultado);
+      // Restaurar la visibilidad
+      document.querySelector('body').style.visibility = 'visible';
+
+      if (result.hasContent) {
+        onScanSuccess(result.content);
       } else {
         onCancel();
       }
     } catch (error) {
-      // Esto nos dirá exactamente el error real en la pantalla del celular
-      alert("Error capturado: " + JSON.stringify(error));
-      console.error("Error nativo detallado:", error);
+      document.querySelector('body').style.visibility = 'visible';
+      console.error("Error en escáner nativo:", error);
+      onCancel();
     }
   };
 
@@ -36,7 +45,7 @@ export default function QrScannerScreen({ onScanSuccess, onCancel }) {
       </p>
 
       <button 
-        onClick={iniciarEscaneoNativo}
+        onClick={iniciarEscaneoOficial}
         style={{ background: '#007bff', color: '#fff', border: 'none', padding: '16px 32px', borderRadius: '12px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '15px', width: '100%', maxWidth: '300px', boxShadow: '0 4px 12px rgba(0,123,255,0.4)' }}
       >
         Escanear QR
