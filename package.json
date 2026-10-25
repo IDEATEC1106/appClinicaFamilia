@@ -4,6 +4,7 @@
   "private": true,
   "dependencies": {
     "@capacitor-mlkit/barcode-scanning": "^6.0.0",
+    "@capacitor-community/barcode-scanner": "^4.0.1"
     "@capacitor/android": "^6.0.0",
     "@capacitor/core": "^6.0.0",
     "@capacitor/camera": "^6.0.0",
