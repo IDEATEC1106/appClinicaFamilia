@@ -1,4 +1,4 @@
-package com.ideatec.appclinicafamilia;
+package com.ideatec.appclinicafamilia
 
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
@@ -7,7 +7,7 @@ import com.getcapacitor.annotation.CapacitorPlugin
 import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 
-@CapacitorPlugin(name = "QrScannerNativo")
+@CapacitorPlugin(name = "QrScannerNativo") // <--- Este nombre debe coincidir con el de React
 class QrScannerPlugin : Plugin() {
 
     @PluginMethod
@@ -18,7 +18,6 @@ class QrScannerPlugin : Plugin() {
             return
         }
 
-        // Configurar el escáner nativo de Google Play Services
         val options = GmsBarcodeScannerOptions.Builder()
             .enableAutoZoom()
             .build()
