@@ -2,13 +2,11 @@ import React, { useEffect } from 'react';
 import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
 
 export default function QrScannerScreen({ onScanSuccess, onCancel }) {
-
   useEffect(() => {
     let isMounted = true;
 
     const abrirEscanerNativo = async () => {
       try {
-        // Solicitar permisos nativos si aún no se tienen
         const permissions = await BarcodeScanner.checkPermissions();
         if (permissions.camera !== 'granted') {
           const req = await BarcodeScanner.requestPermissions();
@@ -19,8 +17,6 @@ export default function QrScannerScreen({ onScanSuccess, onCancel }) {
           }
         }
 
-        // Abrir directamente el visor nativo de Google Play Services en pantalla completa
-        // (Funciona exactamente igual que Yape/Plin, sin pantallas negras ni divs web)
         const result = await BarcodeScanner.scan();
 
         if (result.barcodes && result.barcodes.length > 0 && isMounted) {
@@ -45,4 +41,5 @@ export default function QrScannerScreen({ onScanSuccess, onCancel }) {
     };
   }, [onScanSuccess, onCancel]);
 
-  return null; // No requiere interfaz web, el visor nativo se encarga de todo en pantalla completa.
+  return null;
+}
