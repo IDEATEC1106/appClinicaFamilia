@@ -1,64 +1,74 @@
-. Iniciar el escaneo en tiempo real
-        BarcodeScanner.hideBackground(); // Hace transparente el WebView
-        const result = await BarcodeScanner.startScan(); // Comienza a buscar el QR en vivo
+import React, { useEffect, useRef, useState } from 'react';
 
-        if (result.hasContent && isMounted) {
-          await cerrarEscanner();
-          onScanSuccess(result.content);
+export default function QrScannerScreen({ onScanSuccess, onCancel }) {
+  const videoRef = useRef(null);
+  const [errorPermiso, setErrorPermiso] = useState(false);
+
+  useEffect(() => {
+    let streamActive = null;
+    let isMounted = true;
+
+    const iniciarCamara = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' }
+        });
+        streamActive = stream;
+
+        if (videoRef.current && isMounted) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.setAttribute('playsinline', true);
+          await videoRef.current.play();
         }
-      } catch (error) {
-        console.error('Error en el visor:', error);
-        await cerrarEscanner();
-        if (isMounted) onCancel();
+      } catch (err) {
+        console.error('Error al acceder a la cámara:', err);
+        if (isMounted) setErrorPermiso(true);
       }
     };
 
-    iniciarVisorYape();
+    iniciarCamara();
 
     return () => {
       isMounted = false;
-      cerrarEscanner();
+      if (streamActive) {
+        streamActive.getTracks().forEach(track => track.stop());
+      }
     };
-  }, [onScanSuccess, onCancel]);
-
-  const cerrarEscanner = async () => {
-    try {
-      await BarcodeScanner.stopScan();
-      BarcodeScanner.showBackground();
-      document.body.style.background = '';
-      document.documentElement.style.background = '';
-      const rootEl = document.querySelector('#root');
-      if (rootEl) rootEl.style.display = 'block';
-    } catch (e) {}
-  };
+  }, []);
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 99999 }}>
-      {/* Botón flotante idéntico a Yape para salir del visor */}
-      <div style={{ position: 'absolute', top: '40px', left: '20px', pointerEvents: 'auto', zIndex: 100000 }}>
+    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: '#000', zIndex: 99999, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+      
+      <div style={{ position: 'absolute', top: '40px', left: '20px', zIndex: 100000 }}>
         <button 
-          onClick={async () => {
-            await cerrarEscanner();
-            onCancel();
-          }}
-          style={{ 
-            background: 'rgba(0,0,0,0.7)', 
-            color: '#fff', 
-            border: '2px solid #fff', 
-            padding: '10px 20px', 
-            borderRadius: '20px', 
-            fontSize: '15px', 
-            fontWeight: 'bold', 
-            cursor: 'pointer' 
-          }}
+          onClick={onCancel}
+          style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none', padding: '12px 24px', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}
         >
           ✕ Cancelar
         </button>
       </div>
 
-      <div style={{ position: 'absolute', bottom: '80px', width: '100%', textAlign: 'center', color: '#fff', textShadow: '0 2px 4px rgba(0,0,0,0.8)', fontSize: '16px', pointerEvents: 'none' }}>
-        Enfoque el código QR dentro del recuadro
-      </div>
+      {errorPermiso ? (
+        <div style={{ color: '#fff', textAlign: 'center', padding: '20px' }}>
+          <p style={{ fontSize: '18px', marginBottom: '15px' }}>No se pudo acceder a la cámara.</p>
+          <p style={{ fontSize: '14px', color: '#ccc', marginBottom: '20px' }}>Por favor, asegúrate de permitir el uso de la cámara en los Ajustes del dispositivo.</p>
+          <button onClick={onCancel} style={{ background: '#007bff', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontSize: '16px' }}>
+            Regresar
+          </button>
+        </div>
+      ) : (
+        <div style={{ width: '100%', height: '100%', position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <video 
+            ref={videoRef} 
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+          />
+          <div style={{ position: 'absolute', border: '2px solid #00ff00', width: '250px', height: '250px', borderRadius: '12px', boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.5)', pointerEvents: 'none' }}>
+          </div>
+          <div style={{ position: 'absolute', bottom: '80px', color: '#fff', background: 'rgba(0,0,0,0.6)', padding: '10px 20px', borderRadius: '8px', pointerEvents: 'none' }}>
+            Enfoque el código QR dentro del recuadro
+          </div>
+        </div>
+      )}
     </div>
   );
 }
